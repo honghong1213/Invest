@@ -486,39 +486,38 @@ def create_mini_chart(data, title):
 def screen_kospi_stocks():
     """
     KOSPI 우량기업 스크리닝
-    대상: KOSPI 200 지수 편입 종목 (시가총액 상위 200개 대형주)
-    조건: 20일 신고가 종목만 빠르게 필터링 후 차트로 확인
+    대상: 시가총액 상위 400개 종목 (대형주 + 중형주)
+    조건: 20일 신고가 95% 이상 (5% 조정까지 포함)
     """
     
     try:
-        # KOSPI 200 종목 리스트 가져오기 (우량 대형주만)
+        # 시가총액 상위 400개 종목 가져오기
         today = datetime.now().strftime("%Y%m%d")
         
-        # KOSPI 200 지수 구성 종목 가져오기
-        try:
-            kospi200_tickers = stock.get_index_portfolio_deposit_file("1028")  # KOSPI 200 코드
-            st.info(f"📊 KOSPI 200 우량기업 {len(kospi200_tickers)}개 종목에서 20일 신고가 종목 검색 중...")
-        except:
-            # 실패 시 시가총액 상위 종목으로 대체
-            all_tickers = stock.get_market_ticker_list(today, market="KOSPI")
-            # 시가총액 기준으로 상위 200개 선택
-            market_caps = {}
-            for ticker in all_tickers[:300]:  # 상위 300개만 체크
-                try:
-                    cap = stock.get_market_cap(today, today, ticker)
-                    if not cap.empty:
-                        market_caps[ticker] = cap['시가총액'].iloc[-1]
-                except:
-                    continue
-            
-            # 시가총액 상위 200개 선택
-            sorted_tickers = sorted(market_caps.items(), key=lambda x: x[1], reverse=True)
-            kospi200_tickers = [t[0] for t in sorted_tickers[:200]]
-            st.info(f"📊 시가총액 상위 {len(kospi200_tickers)}개 우량기업에서 20일 신고가 종목 검색 중...")
+        # KOSPI 전체 종목 가져오기
+        all_tickers = stock.get_market_ticker_list(today, market="KOSPI")
+        
+        st.info(f"📊 시가총액 조회 중... (총 {len(all_tickers)}개 종목)")
+        
+        # 시가총액 기준으로 상위 400개 선택
+        market_caps = {}
+        for ticker in all_tickers[:600]:  # 상위 600개만 체크 (속도 고려)
+            try:
+                cap = stock.get_market_cap(today, today, ticker)
+                if not cap.empty:
+                    market_caps[ticker] = cap['시가총액'].iloc[-1]
+            except:
+                continue
+        
+        # 시가총액 상위 400개 선택
+        sorted_tickers = sorted(market_caps.items(), key=lambda x: x[1], reverse=True)
+        top_tickers = [t[0] for t in sorted_tickers[:400]]
+        
+        st.info(f"📊 시가총액 상위 {len(top_tickers)}개 종목에서 20일 신고가 종목 검색 중...")
         
         # 종목명 가져오기
         kospi_symbols = {}
-        for ticker in kospi200_tickers:
+        for ticker in top_tickers:
             try:
                 name = stock.get_market_ticker_name(ticker)
                 # yfinance 형식으로 변환 (6자리 코드.KS)
@@ -530,7 +529,7 @@ def screen_kospi_stocks():
         st.warning(f"⚠️ pykrx로 종목 리스트를 가져오는 데 실패했습니다: {str(e)}")
         st.info("💡 주요 우량주만으로 분석을 진행합니다...")
         
-        # 실패 시 주요 우량주만 사용 (KOSPI 200 주요 종목)
+        # 실패 시 주요 우량주만 사용
         kospi_symbols = {
             # IT/반도체 대형주
             "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "LG에너지솔루션": "373220.KS",
@@ -577,7 +576,7 @@ def screen_kospi_stocks():
             
             # 20일 신고가 체크 (지표 계산 없이 단순 비교만)
             high_20d = data['High'][-20:].max()
-            is_new_high = latest['Close'] >= high_20d * 0.99  # 99% 이상이면 신고가 근처
+            is_new_high = latest['Close'] >= high_20d * 0.95  # 95% 이상 (5% 조정까지 포함)
             
             if is_new_high:
                 # 신고가 종목 발견 시 3개월 데이터로 지표 계산
@@ -890,11 +889,11 @@ elif view_mode == "🔍 상세 분석":
             st.markdown("---")
             st.subheader("🔍 KOSPI 우량기업 스크리닝")
             
-            with st.spinner("KOSPI 200 우량기업에서 20일 신고가 종목 검색 중... (약 1분 소요)"):
+            with st.spinner("시가총액 상위 400개 종목에서 20일 신고가 종목 검색 중... (약 1-2분 소요)"):
                 new_high_stocks = screen_kospi_stocks()
             
             # 20일 신고가 종목 표시
-            st.info("📊 대상: KOSPI 200 우량기업 (시가총액 상위 200개) | 조건: 20일 신고가")
+            st.info("📊 대상: 시가총액 상위 400개 (대형주+중형주) | 조건: 20일 신고가 95% 이상")
             
             if new_high_stocks:
                 st.success(f"✅ {len(new_high_stocks)}개 종목이 20일 신고가를 달성했습니다!")
