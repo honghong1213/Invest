@@ -310,6 +310,11 @@ def create_simple_chart(data, title):
     # 이동평균선
     fig.add_trace(go.Scatter(x=data.index, y=data['MA20'], name='MA20', line=dict(color='orange', width=1)))
     fig.add_trace(go.Scatter(x=data.index, y=data['MA50'], name='MA50', line=dict(color='blue', width=1)))
+    
+    # 60일선 추가 (중장기 추세)
+    if 'MA60' in data.columns:
+        fig.add_trace(go.Scatter(x=data.index, y=data['MA60'], name='MA60', line=dict(color='purple', width=2)))
+    
     fig.add_trace(go.Scatter(x=data.index, y=data['MA200'], name='MA200', line=dict(color='red', width=1)))
     
     # 볼린저 밴드
@@ -487,7 +492,7 @@ def screen_kospi_stocks():
     """
     KOSPI 우량기업 스크리닝
     대상: 시가총액 상위 400개 종목 (대형주 + 중형주)
-    조건: 20일 신고가 95% 이상 (5% 조정까지 포함)
+    조건: ① 20일 신고가 95% 이상 + ② 60일선 위 (중장기 상승 추세)
     """
     
     try:
@@ -579,12 +584,22 @@ def screen_kospi_stocks():
             is_new_high = latest['Close'] >= high_20d * 0.95  # 95% 이상 (5% 조정까지 포함)
             
             if is_new_high:
-                # 신고가 종목 발견 시 3개월 데이터로 지표 계산
+                # 신고가 종목 발견 시 3개월 데이터로 지표 계산 (60일선 확인용)
                 data_3m = load_data(symbol, period="3mo")
-                if data_3m is not None and not data_3m.empty:
-                    data_with_indicators = calculate_indicators(data_3m)
-                    latest_with_indicators = data_with_indicators.iloc[-1]
-                    new_high_stocks.append((name, symbol, data_with_indicators, latest_with_indicators))
+                if data_3m is not None and not data_3m.empty and len(data_3m) >= 60:
+                    # 60일 이동평균선 계산
+                    ma_60 = data_3m['Close'].rolling(window=60).mean()
+                    data_3m['MA60'] = ma_60
+                    
+                    latest_3m = data_3m.iloc[-1]
+                    
+                    # 60일선 위에 있는지 체크
+                    if pd.notna(latest_3m['MA60']) and latest_3m['Close'] > latest_3m['MA60']:
+                        # 60일선 위에 있는 종목만 지표 계산
+                        data_with_indicators = calculate_indicators(data_3m)
+                        data_with_indicators['MA60'] = ma_60  # MA60도 포함
+                        latest_with_indicators = data_with_indicators.iloc[-1]
+                        new_high_stocks.append((name, symbol, data_with_indicators, latest_with_indicators))
             
             processed += 1
         
@@ -598,7 +613,7 @@ def screen_kospi_stocks():
     # 등락률 높은 순으로 정렬 (모멘텀 강한 종목 우선)
     new_high_stocks.sort(key=lambda x: ((x[3]['Close'] - x[2].iloc[-2]['Close']) / x[2].iloc[-2]['Close']) * 100, reverse=True)
     
-    st.success(f"✅ 분석 완료: 총 {processed}개 종목 처리, {len(new_high_stocks)}개 종목이 20일 신고가 달성")
+    st.success(f"✅ 분석 완료: 총 {processed}개 종목 처리, {len(new_high_stocks)}개 종목이 조건 충족 (20일 신고가 + 60일선 위)")
     
     return new_high_stocks
 
@@ -893,7 +908,7 @@ elif view_mode == "🔍 상세 분석":
                 new_high_stocks = screen_kospi_stocks()
             
             # 20일 신고가 종목 표시
-            st.info("📊 대상: 시가총액 상위 400개 (대형주+중형주) | 조건: 20일 신고가 95% 이상")
+            st.info("📊 대상: 시가총액 상위 400개 (대형주+중형주) | 조건: ① 20일 신고가 95% 이상 + ② 60일선 위")
             
             if new_high_stocks:
                 st.success(f"✅ {len(new_high_stocks)}개 종목이 20일 신고가를 달성했습니다!")
@@ -919,7 +934,7 @@ elif view_mode == "🔍 상세 분석":
                                     st.metric("현재가", f"{latest_data['Close']:,.0f}원")
                                 
                                 # 기술적 지표 표시
-                                col1, col2, col3 = st.columns(3)
+                                col1, col2, col3, col4 = st.columns(4)
                                 with col1:
                                     rsi = latest_data['RSI']
                                     if pd.notna(rsi):
@@ -932,6 +947,11 @@ elif view_mode == "🔍 상세 분석":
                                         breakthrough = "✅" if lagging > bb_upper else "❌"
                                         st.metric("후행>BB", breakthrough)
                                 with col3:
+                                    # 60일선 대비 위치
+                                    if pd.notna(latest_data['MA60']):
+                                        ma60_diff = ((latest_data['Close'] - latest_data['MA60']) / latest_data['MA60']) * 100
+                                        st.metric("60일선", f"+{ma60_diff:.1f}%")
+                                with col4:
                                     # 20일 신고가 달성률
                                     high_20d = stock_data['High'][-20:].max()
                                     achievement = (latest_data['Close'] / high_20d) * 100
