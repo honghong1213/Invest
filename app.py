@@ -492,7 +492,7 @@ def screen_kospi_stocks():
     """
     KOSPI 우량기업 스크리닝
     대상: 시가총액 상위 400개 종목 (대형주 + 중형주)
-    조건: ① 20일 신고가 95% 이상 + ② 60일선 위 (중장기 상승 추세)
+    조건: ① 20일 신고가 98% 이상 + ② 거래량 20% 이상 증가 + ③ 60일선 위
     """
     
     try:
@@ -568,7 +568,7 @@ def screen_kospi_stocks():
     # 1단계: 20일 신고가 종목만 빠르게 필터링 (지표 계산 없이)
     for idx, (name, symbol) in enumerate(kospi_symbols.items()):
         try:
-            status_text.text(f"검색 중: {name} ({idx+1}/{total}) | 20일 신고가: {len(new_high_stocks)}개 | 오류: {errors}개")
+            status_text.text(f"검색 중: {name} ({idx+1}/{total}) | 조건 충족: {len(new_high_stocks)}개 | 오류: {errors}개")
             progress_bar.progress((idx + 1) / total)
             
             # 최소한의 데이터만 로드 (1개월)
@@ -579,27 +579,46 @@ def screen_kospi_stocks():
             
             latest = data.iloc[-1]
             
-            # 20일 신고가 체크 (지표 계산 없이 단순 비교만)
+            # 1차 필터: 20일 신고가 체크 (98% 이상)
             high_20d = data['High'][-20:].max()
-            is_new_high = latest['Close'] >= high_20d * 0.95  # 95% 이상 (5% 조정까지 포함)
+            is_new_high = latest['Close'] >= high_20d * 0.98  # 98% 이상 (신고가 근처)
             
-            if is_new_high:
-                # 신고가 종목 발견 시 3개월 데이터로 지표 계산 (60일선 확인용)
-                data_3m = load_data(symbol, period="3mo")
-                if data_3m is not None and not data_3m.empty and len(data_3m) >= 60:
-                    # 60일 이동평균선 계산
-                    ma_60 = data_3m['Close'].rolling(window=60).mean()
-                    data_3m['MA60'] = ma_60
+            if not is_new_high:
+                processed += 1
+                continue
+            
+            # 2차 필터: 거래량 증가 체크
+            # 최근 5일 평균 거래량 vs 이전 10일 평균 거래량
+            recent_volume_avg = data['Volume'][-5:].mean()  # 최근 5일
+            prev_volume_avg = data['Volume'][-15:-5].mean()  # 이전 10일
+            
+            is_volume_increasing = recent_volume_avg > prev_volume_avg * 1.2  # 20% 이상 증가
+            
+            if not is_volume_increasing:
+                processed += 1
+                continue
+            
+            # 3차 필터: 60일선 체크
+            # 신고가 + 거래량 증가 종목 발견 시 3개월 데이터로 지표 계산
+            data_3m = load_data(symbol, period="3mo")
+            if data_3m is not None and not data_3m.empty and len(data_3m) >= 60:
+                # 60일 이동평균선 계산
+                ma_60 = data_3m['Close'].rolling(window=60).mean()
+                data_3m['MA60'] = ma_60
+                
+                latest_3m = data_3m.iloc[-1]
+                
+                # 60일선 위에 있는지 체크
+                if pd.notna(latest_3m['MA60']) and latest_3m['Close'] > latest_3m['MA60']:
+                    # 모든 조건 충족: 지표 계산 후 추가
+                    data_with_indicators = calculate_indicators(data_3m)
+                    data_with_indicators['MA60'] = ma_60  # MA60도 포함
+                    latest_with_indicators = data_with_indicators.iloc[-1]
                     
-                    latest_3m = data_3m.iloc[-1]
+                    # 거래량 증가율 저장
+                    volume_increase_pct = ((recent_volume_avg - prev_volume_avg) / prev_volume_avg) * 100
                     
-                    # 60일선 위에 있는지 체크
-                    if pd.notna(latest_3m['MA60']) and latest_3m['Close'] > latest_3m['MA60']:
-                        # 60일선 위에 있는 종목만 지표 계산
-                        data_with_indicators = calculate_indicators(data_3m)
-                        data_with_indicators['MA60'] = ma_60  # MA60도 포함
-                        latest_with_indicators = data_with_indicators.iloc[-1]
-                        new_high_stocks.append((name, symbol, data_with_indicators, latest_with_indicators))
+                    new_high_stocks.append((name, symbol, data_with_indicators, latest_with_indicators, volume_increase_pct))
             
             processed += 1
         
@@ -610,10 +629,10 @@ def screen_kospi_stocks():
     progress_bar.empty()
     status_text.empty()
     
-    # 등락률 높은 순으로 정렬 (모멘텀 강한 종목 우선)
-    new_high_stocks.sort(key=lambda x: ((x[3]['Close'] - x[2].iloc[-2]['Close']) / x[2].iloc[-2]['Close']) * 100, reverse=True)
+    # 거래량 증가율 높은 순으로 정렬 (거래 활발한 종목 우선)
+    new_high_stocks.sort(key=lambda x: x[4], reverse=True)
     
-    st.success(f"✅ 분석 완료: 총 {processed}개 종목 처리, {len(new_high_stocks)}개 종목이 조건 충족 (20일 신고가 + 60일선 위)")
+    st.success(f"✅ 분석 완료: 총 {processed}개 종목 처리, {len(new_high_stocks)}개 종목이 조건 충족 (신고가 98% + 거래량↑ + 60일선↑)")
     
     return new_high_stocks
 
@@ -908,7 +927,7 @@ elif view_mode == "🔍 상세 분석":
                 new_high_stocks = screen_kospi_stocks()
             
             # 20일 신고가 종목 표시
-            st.info("📊 대상: 시가총액 상위 400개 (대형주+중형주) | 조건: ① 20일 신고가 95% 이상 + ② 60일선 위")
+            st.info("📊 대상: 시가총액 상위 400개 | 조건: ① 신고가 98%↑ + ② 거래량 20%↑ + ③ 60일선↑")
             
             if new_high_stocks:
                 st.success(f"✅ {len(new_high_stocks)}개 종목이 20일 신고가를 달성했습니다!")
@@ -920,7 +939,7 @@ elif view_mode == "🔍 상세 분석":
                     for j in range(num_cols):
                         idx = i + j
                         if idx < len(new_high_stocks):
-                            name, symbol, stock_data, latest_data = new_high_stocks[idx]
+                            name, symbol, stock_data, latest_data, volume_increase = new_high_stocks[idx]
                             
                             with cols[j]:
                                 st.markdown(f"### {name}")
@@ -932,6 +951,9 @@ elif view_mode == "🔍 상세 분석":
                                     st.metric("현재가", f"{latest_data['Close']:,.0f}원", f"{change_pct:+.2f}%")
                                 else:
                                     st.metric("현재가", f"{latest_data['Close']:,.0f}원")
+                                
+                                # 거래량 증가율 (상단에 강조 표시)
+                                st.metric("🔥 거래량 증가", f"+{volume_increase:.1f}%", delta_color="normal")
                                 
                                 # 기술적 지표 표시
                                 col1, col2, col3, col4 = st.columns(4)
