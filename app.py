@@ -998,6 +998,93 @@ elif view_mode == "🔍 상세 분석":
     with st.spinner(f'{selected_asset} 데이터 로딩 중...'):
         data = load_data(ticker, period=period_options[selected_period])
 
+    # KOSPI 또는 KOSDAQ 선택 시 종목 스크리닝 먼저 실행 (지수 데이터와 무관)
+    if selected_asset in ["🇰🇷 KOSPI", "🇰🇷 KOSDAQ"]:
+        market_type = "KOSPI" if selected_asset == "🇰🇷 KOSPI" else "KOSDAQ"
+        market_display = "코스피" if market_type == "KOSPI" else "코스닥"
+        
+        st.markdown("---")
+        st.subheader(f"🔍 {market_display} 우량기업 스크리닝")
+        st.info(f"🔄 {market_display} 시가총액 상위 400개 종목 분석을 시작합니다...")
+        
+        with st.spinner(f"시가총액 상위 400개 종목에서 20일 신고가 종목 검색 중... (약 1-2분 소요)"):
+            try:
+                if market_type == "KOSPI":
+                    new_high_stocks = screen_kospi_stocks()
+                else:
+                    new_high_stocks = screen_kosdaq_stocks()
+            except Exception as e:
+                st.error(f"❌ 스크리닝 중 오류 발생: {str(e)}")
+                import traceback
+                st.error(f"상세 오류: {traceback.format_exc()}")
+                new_high_stocks = []
+        
+        # 20일 신고가 종목 표시
+        st.info(f"📊 대상: {market_display} 시가총액 상위 400개 | 조건: ① 신고가 98%↑ + ② 거래량 20%↑ + ③ 60일선↑")
+        
+        if new_high_stocks:
+            st.success(f"✅ {len(new_high_stocks)}개 종목이 20일 신고가를 달성했습니다!")
+            
+            # 3열로 표시
+            num_cols = 3
+            for i in range(0, len(new_high_stocks), num_cols):
+                cols = st.columns(num_cols)
+                for j in range(num_cols):
+                    idx = i + j
+                    if idx < len(new_high_stocks):
+                        name, symbol, stock_data, latest_data, volume_increase, eps_change = new_high_stocks[idx]
+                        
+                        with cols[j]:
+                            st.markdown(f"### {name}")
+                            
+                            # 현재가 및 등락률
+                            if len(stock_data) >= 2:
+                                prev = stock_data.iloc[-2]
+                                change_pct = ((latest_data['Close'] - prev['Close']) / prev['Close']) * 100
+                                st.metric("현재가", f"{latest_data['Close']:,.0f}원", f"{change_pct:+.2f}%")
+                            else:
+                                st.metric("현재가", f"{latest_data['Close']:,.0f}원")
+                            
+                            # 거래량 증가율 및 영업이익 변동 (2열)
+                            metric_col1, metric_col2 = st.columns(2)
+                            with metric_col1:
+                                st.metric("🔥 거래량", f"+{volume_increase:.1f}%")
+                            with metric_col2:
+                                if eps_change is not None:
+                                    delta_color = "normal" if eps_change > 0 else "inverse"
+                                    st.metric("💼 EPS", f"{eps_change:+.1f}%", delta_color=delta_color)
+                                else:
+                                    st.metric("💼 EPS", "N/A")
+                            
+                            # 기술적 지표 표시 (간격 통일)
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                rsi = latest_data['RSI']
+                                if pd.notna(rsi):
+                                    st.metric("RSI", f"{rsi:.1f}")
+                            with col2:
+                                # 60일선 대비 위치
+                                if pd.notna(latest_data['MA60']):
+                                    ma60_diff = ((latest_data['Close'] - latest_data['MA60']) / latest_data['MA60']) * 100
+                                    st.metric("60일선", f"+{ma60_diff:.1f}%")
+                            with col3:
+                                # 20일 신고가 달성률
+                                high_20d = stock_data['High'][-20:].max()
+                                achievement = (latest_data['Close'] / high_20d) * 100
+                                st.metric("신고가", f"{achievement:.1f}%")
+                            
+                            # 상세 차트 (후행스팬, 볼린저밴드 포함)
+                            chart = create_simple_chart(stock_data, name)
+                            st.plotly_chart(chart, use_container_width=True)
+                            
+                            st.markdown("---")
+        else:
+            st.warning("⚠️ 현재 20일 신고가를 달성한 종목이 없습니다.")
+            st.info("💡 팁: 시장 조정 시기에는 신고가 종목이 적을 수 있습니다.")
+        
+        st.markdown("---")
+
+    # 지수 차트 표시 (데이터가 있는 경우에만)
     if data is not None and not data.empty:
         # 지표 계산
         data_with_indicators = calculate_indicators(data)
@@ -1012,89 +1099,6 @@ elif view_mode == "🔍 상세 분석":
         st.subheader(f"📈 {selected_asset} 가격 차트")
         simple_chart = create_simple_chart(data_with_indicators, selected_asset)
         st.plotly_chart(simple_chart, use_container_width=True)
-        
-        # KOSPI 또는 KOSDAQ 선택 시 종목 스크리닝 결과 표시
-        if selected_asset in ["🇰🇷 KOSPI", "🇰🇷 KOSDAQ"]:
-            market_type = "KOSPI" if selected_asset == "🇰🇷 KOSPI" else "KOSDAQ"
-            market_display = "코스피" if market_type == "KOSPI" else "코스닥"
-            
-            st.markdown("---")
-            st.subheader(f"🔍 {market_display} 우량기업 스크리닝")
-            st.info(f"🔄 {market_display} 시가총액 상위 400개 종목 분석을 시작합니다...")
-            
-            with st.spinner(f"시가총액 상위 400개 종목에서 20일 신고가 종목 검색 중... (약 1-2분 소요)"):
-                try:
-                    if market_type == "KOSPI":
-                        new_high_stocks = screen_kospi_stocks()
-                    else:
-                        new_high_stocks = screen_kosdaq_stocks()
-                except Exception as e:
-                    st.error(f"❌ 스크리닝 중 오류 발생: {str(e)}")
-                    new_high_stocks = []
-            
-            # 20일 신고가 종목 표시
-            st.info(f"📊 대상: {market_display} 시가총액 상위 400개 | 조건: ① 신고가 98%↑ + ② 거래량 20%↑ + ③ 60일선↑")
-            
-            if new_high_stocks:
-                st.success(f"✅ {len(new_high_stocks)}개 종목이 20일 신고가를 달성했습니다!")
-                
-                # 3열로 표시
-                num_cols = 3
-                for i in range(0, len(new_high_stocks), num_cols):
-                    cols = st.columns(num_cols)
-                    for j in range(num_cols):
-                        idx = i + j
-                        if idx < len(new_high_stocks):
-                            name, symbol, stock_data, latest_data, volume_increase, eps_change = new_high_stocks[idx]
-                            
-                            with cols[j]:
-                                st.markdown(f"### {name}")
-                                
-                                # 현재가 및 등락률
-                                if len(stock_data) >= 2:
-                                    prev = stock_data.iloc[-2]
-                                    change_pct = ((latest_data['Close'] - prev['Close']) / prev['Close']) * 100
-                                    st.metric("현재가", f"{latest_data['Close']:,.0f}원", f"{change_pct:+.2f}%")
-                                else:
-                                    st.metric("현재가", f"{latest_data['Close']:,.0f}원")
-                                
-                                # 거래량 증가율 및 영업이익 변동 (2열)
-                                metric_col1, metric_col2 = st.columns(2)
-                                with metric_col1:
-                                    st.metric("🔥 거래량", f"+{volume_increase:.1f}%")
-                                with metric_col2:
-                                    if eps_change is not None:
-                                        delta_color = "normal" if eps_change > 0 else "inverse"
-                                        st.metric("💼 EPS", f"{eps_change:+.1f}%", delta_color=delta_color)
-                                    else:
-                                        st.metric("💼 EPS", "N/A")
-                                
-                                # 기술적 지표 표시 (간격 통일)
-                                col1, col2, col3 = st.columns(3)
-                                with col1:
-                                    rsi = latest_data['RSI']
-                                    if pd.notna(rsi):
-                                        st.metric("RSI", f"{rsi:.1f}")
-                                with col2:
-                                    # 60일선 대비 위치
-                                    if pd.notna(latest_data['MA60']):
-                                        ma60_diff = ((latest_data['Close'] - latest_data['MA60']) / latest_data['MA60']) * 100
-                                        st.metric("60일선", f"+{ma60_diff:.1f}%")
-                                with col3:
-                                    # 20일 신고가 달성률
-                                    high_20d = stock_data['High'][-20:].max()
-                                    achievement = (latest_data['Close'] / high_20d) * 100
-                                    st.metric("신고가", f"{achievement:.1f}%")
-                                
-                                # 상세 차트 (후행스팬, 볼린저밴드 포함)
-                                chart = create_simple_chart(stock_data, name)
-                                st.plotly_chart(chart, use_container_width=True)
-                                
-                                st.markdown("---")
-            else:
-                st.warning("⚠️ 현재 20일 신고가를 달성한 종목이 없습니다.")
-                st.info("💡 팁: 시장 조정 시기에는 신고가 종목이 적을 수 있습니다.")
-
 
     else:
         st.error(f"❌ {selected_asset} 데이터를 불러올 수 없습니다. 다른 자산을 선택해주세요.")
