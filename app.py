@@ -485,19 +485,40 @@ def create_mini_chart(data, title):
 
 def screen_kospi_stocks():
     """
-    KOSPI 전체 상장사 스크리닝 (약 960개)
-    1단계: 20일 신고가 종목만 빠르게 필터링
-    2단계: 차트로 시각화하여 사용자가 직접 확인
+    KOSPI 우량기업 스크리닝
+    대상: KOSPI 200 지수 편입 종목 (시가총액 상위 200개 대형주)
+    조건: 20일 신고가 종목만 빠르게 필터링 후 차트로 확인
     """
     
     try:
-        # KOSPI 전체 종목 리스트 가져오기
+        # KOSPI 200 종목 리스트 가져오기 (우량 대형주만)
         today = datetime.now().strftime("%Y%m%d")
-        kospi_tickers = stock.get_market_ticker_list(today, market="KOSPI")
+        
+        # KOSPI 200 지수 구성 종목 가져오기
+        try:
+            kospi200_tickers = stock.get_index_portfolio_deposit_file("1028")  # KOSPI 200 코드
+            st.info(f"📊 KOSPI 200 우량기업 {len(kospi200_tickers)}개 종목에서 20일 신고가 종목 검색 중...")
+        except:
+            # 실패 시 시가총액 상위 종목으로 대체
+            all_tickers = stock.get_market_ticker_list(today, market="KOSPI")
+            # 시가총액 기준으로 상위 200개 선택
+            market_caps = {}
+            for ticker in all_tickers[:300]:  # 상위 300개만 체크
+                try:
+                    cap = stock.get_market_cap(today, today, ticker)
+                    if not cap.empty:
+                        market_caps[ticker] = cap['시가총액'].iloc[-1]
+                except:
+                    continue
+            
+            # 시가총액 상위 200개 선택
+            sorted_tickers = sorted(market_caps.items(), key=lambda x: x[1], reverse=True)
+            kospi200_tickers = [t[0] for t in sorted_tickers[:200]]
+            st.info(f"📊 시가총액 상위 {len(kospi200_tickers)}개 우량기업에서 20일 신고가 종목 검색 중...")
         
         # 종목명 가져오기
         kospi_symbols = {}
-        for ticker in kospi_tickers:
+        for ticker in kospi200_tickers:
             try:
                 name = stock.get_market_ticker_name(ticker)
                 # yfinance 형식으로 변환 (6자리 코드.KS)
@@ -505,27 +526,30 @@ def screen_kospi_stocks():
             except:
                 continue
         
-        st.info(f"📊 KOSPI 전체 {len(kospi_symbols)}개 종목에서 20일 신고가 종목 검색 중...")
-        
     except Exception as e:
         st.warning(f"⚠️ pykrx로 종목 리스트를 가져오는 데 실패했습니다: {str(e)}")
-        st.info("💡 주요 종목만으로 분석을 진행합니다...")
+        st.info("💡 주요 우량주만으로 분석을 진행합니다...")
         
-        # 실패 시 주요 종목만 사용
+        # 실패 시 주요 우량주만 사용 (KOSPI 200 주요 종목)
         kospi_symbols = {
-            # IT/반도체
+            # IT/반도체 대형주
             "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "LG에너지솔루션": "373220.KS",
             "삼성SDI": "006400.KS", "LG전자": "066570.KS", "삼성전기": "009150.KS",
-            # 바이오/제약
+            "SK스퀘어": "402340.KS", "NAVER": "035420.KS", "카카오": "035720.KS",
+            # 바이오/제약 대형주
             "삼성바이오로직스": "207940.KS", "셀트리온": "068270.KS", "셀트리온헬스케어": "091990.KS",
-            # 자동차
+            # 자동차 대형주
             "현대차": "005380.KS", "기아": "000270.KS", "현대모비스": "012330.KS",
-            # 화학/소재
+            # 화학/소재 대형주
             "LG화학": "051910.KS", "포스코홀딩스": "005490.KS", "SK이노베이션": "096770.KS",
-            # 금융
+            "POSCO DX": "022100.KS", "롯데케미칼": "011170.KS",
+            # 금융 대형주
             "KB금융": "105560.KS", "신한지주": "055550.KS", "하나금융지주": "086790.KS",
-            # 기타
-            "NAVER": "035420.KS", "카카오": "035720.KS", "삼성물산": "028260.KS",
+            "우리금융지주": "316140.KS", "삼성생명": "032830.KS", "삼성화재": "000810.KS",
+            # 건설/중공업 대형주
+            "삼성물산": "028260.KS", "현대건설": "000720.KS", "HD현대": "267250.KS",
+            # 유통/서비스 대형주
+            "신세계": "004170.KS", "롯데쇼핑": "023530.KS", "CJ제일제당": "097950.KS",
         }
     
     new_high_stocks = []
@@ -864,13 +888,13 @@ elif view_mode == "🔍 상세 분석":
         # KOSPI 선택 시 종목 스크리닝 결과 표시
         if selected_asset == "🇰🇷 KOSPI":
             st.markdown("---")
-            st.subheader("🔍 KOSPI 종목 스크리닝")
+            st.subheader("🔍 KOSPI 우량기업 스크리닝")
             
-            with st.spinner("KOSPI 전체 상장사에서 20일 신고가 종목 검색 중... (약 2-3분 소요)"):
+            with st.spinner("KOSPI 200 우량기업에서 20일 신고가 종목 검색 중... (약 1분 소요)"):
                 new_high_stocks = screen_kospi_stocks()
             
             # 20일 신고가 종목 표시
-            st.info("📊 조건: 20일 신고가 종목 (차트에서 후행스팬과 볼린저밴드를 직접 확인하세요)")
+            st.info("📊 대상: KOSPI 200 우량기업 (시가총액 상위 200개) | 조건: 20일 신고가")
             
             if new_high_stocks:
                 st.success(f"✅ {len(new_high_stocks)}개 종목이 20일 신고가를 달성했습니다!")
