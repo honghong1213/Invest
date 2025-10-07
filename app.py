@@ -9,6 +9,7 @@ import ta
 import ssl
 import certifi
 from pykrx import stock
+from pykrx import stock as pykrx_stock
 
 # SSL 인증서 문제 해결
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -488,6 +489,55 @@ def create_mini_chart(data, title):
     
     return mini_fig
 
+def get_operating_income_change(ticker_code):
+    """
+    최근 영업이익 변동치 조회 (전년 대비 증감률)
+    ticker_code: "005930" 형식 (6자리)
+    """
+    try:
+        from datetime import datetime
+        import time
+        
+        # 현재 날짜 기준으로 최근 분기 데이터 조회
+        current_date = datetime.now()
+        
+        # 최근 3개월 내 거래일 찾기
+        for i in range(90):
+            try_date = (current_date - timedelta(days=i)).strftime("%Y%m%d")
+            try:
+                # 분기별 재무제표 조회
+                df = pykrx_stock.get_market_fundamental(try_date, try_date, ticker_code)
+                if df is not None and not df.empty:
+                    break
+                time.sleep(0.1)  # API 호출 제한 방지
+            except:
+                continue
+        else:
+            return None
+        
+        # BPS, PER, PBR, EPS, DIV, DPS 컬럼 존재
+        # 영업이익은 직접 제공되지 않으므로 대신 EPS 변동을 사용
+        if 'EPS' in df.columns and len(df) > 0:
+            current_eps = df['EPS'].iloc[0]
+            
+            # 1년 전 데이터 조회
+            one_year_ago = (current_date - timedelta(days=365)).strftime("%Y%m%d")
+            try:
+                df_prev = pykrx_stock.get_market_fundamental(one_year_ago, one_year_ago, ticker_code)
+                if df_prev is not None and not df_prev.empty and 'EPS' in df_prev.columns:
+                    prev_eps = df_prev['EPS'].iloc[0]
+                    if prev_eps != 0:
+                        eps_change = ((current_eps - prev_eps) / abs(prev_eps)) * 100
+                        return round(eps_change, 1)
+            except:
+                pass
+        
+        return None
+        
+    except Exception as e:
+        return None
+
+
 def screen_kospi_stocks():
     """
     KOSPI 우량기업 스크리닝
@@ -618,7 +668,11 @@ def screen_kospi_stocks():
                     # 거래량 증가율 저장
                     volume_increase_pct = ((recent_volume_avg - prev_volume_avg) / prev_volume_avg) * 100
                     
-                    new_high_stocks.append((name, symbol, data_with_indicators, latest_with_indicators, volume_increase_pct))
+                    # 영업이익(EPS) 변동률 조회
+                    ticker_code = symbol.replace(".KS", "")  # "005930.KS" -> "005930"
+                    eps_change = get_operating_income_change(ticker_code)
+                    
+                    new_high_stocks.append((name, symbol, data_with_indicators, latest_with_indicators, volume_increase_pct, eps_change))
             
             processed += 1
         
@@ -939,7 +993,7 @@ elif view_mode == "🔍 상세 분석":
                     for j in range(num_cols):
                         idx = i + j
                         if idx < len(new_high_stocks):
-                            name, symbol, stock_data, latest_data, volume_increase = new_high_stocks[idx]
+                            name, symbol, stock_data, latest_data, volume_increase, eps_change = new_high_stocks[idx]
                             
                             with cols[j]:
                                 st.markdown(f"### {name}")
@@ -952,28 +1006,29 @@ elif view_mode == "🔍 상세 분석":
                                 else:
                                     st.metric("현재가", f"{latest_data['Close']:,.0f}원")
                                 
-                                # 거래량 증가율 (상단에 강조 표시)
-                                st.metric("🔥 거래량 증가", f"+{volume_increase:.1f}%", delta_color="normal")
+                                # 거래량 증가율 및 영업이익 변동 (2열)
+                                metric_col1, metric_col2 = st.columns(2)
+                                with metric_col1:
+                                    st.metric("🔥 거래량", f"+{volume_increase:.1f}%")
+                                with metric_col2:
+                                    if eps_change is not None:
+                                        delta_color = "normal" if eps_change > 0 else "inverse"
+                                        st.metric("💼 EPS", f"{eps_change:+.1f}%", delta_color=delta_color)
+                                    else:
+                                        st.metric("💼 EPS", "N/A")
                                 
-                                # 기술적 지표 표시
-                                col1, col2, col3, col4 = st.columns(4)
+                                # 기술적 지표 표시 (간격 통일)
+                                col1, col2, col3 = st.columns(3)
                                 with col1:
                                     rsi = latest_data['RSI']
                                     if pd.notna(rsi):
                                         st.metric("RSI", f"{rsi:.1f}")
                                 with col2:
-                                    # 후행스팬과 BB상단 비교
-                                    if pd.notna(latest_data['Ichimoku_Lagging']) and pd.notna(latest_data['BB_Upper']):
-                                        lagging = latest_data['Ichimoku_Lagging']
-                                        bb_upper = latest_data['BB_Upper']
-                                        breakthrough = "✅" if lagging > bb_upper else "❌"
-                                        st.metric("후행>BB", breakthrough)
-                                with col3:
                                     # 60일선 대비 위치
                                     if pd.notna(latest_data['MA60']):
                                         ma60_diff = ((latest_data['Close'] - latest_data['MA60']) / latest_data['MA60']) * 100
                                         st.metric("60일선", f"+{ma60_diff:.1f}%")
-                                with col4:
+                                with col3:
                                     # 20일 신고가 달성률
                                     high_20d = stock_data['High'][-20:].max()
                                     achievement = (latest_data['Close'] / high_20d) * 100
