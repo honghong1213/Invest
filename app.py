@@ -491,27 +491,27 @@ def screen_kospi_stocks():
     """
     
     try:
-        # 시가총액 상위 400개 종목 가져오기
-        today = datetime.now().strftime("%Y%m%d")
+        st.info(f"📊 시가총액 조회 중...")
         
-        # KOSPI 전체 종목 가져오기
-        all_tickers = stock.get_market_ticker_list(today, market="KOSPI")
-        
-        st.info(f"📊 시가총액 조회 중... (총 {len(all_tickers)}개 종목)")
-        
-        # 시가총액 기준으로 상위 400개 선택
-        market_caps = {}
-        for ticker in all_tickers[:600]:  # 상위 600개만 체크 (속도 고려)
+        # 최근 거래일 찾기 (최대 7일 전까지)
+        market_cap_df = None
+        for i in range(7):
+            check_date = (datetime.now() - timedelta(days=i)).strftime("%Y%m%d")
             try:
-                cap = stock.get_market_cap(today, today, ticker)
-                if not cap.empty:
-                    market_caps[ticker] = cap['시가총액'].iloc[-1]
+                df_temp = stock.get_market_cap_by_ticker(check_date, market="KOSPI")
+                if not df_temp.empty and df_temp['시가총액'].sum() > 0:
+                    market_cap_df = df_temp
+                    st.info(f"📊 기준일: {check_date[:4]}-{check_date[4:6]}-{check_date[6:]} 시가총액 데이터 사용")
+                    break
             except:
                 continue
         
-        # 시가총액 상위 400개 선택
-        sorted_tickers = sorted(market_caps.items(), key=lambda x: x[1], reverse=True)
-        top_tickers = [t[0] for t in sorted_tickers[:400]]
+        if market_cap_df is None or market_cap_df.empty:
+            raise Exception("시가총액 데이터를 가져올 수 없습니다")
+        
+        # 시가총액 기준으로 정렬하여 상위 400개 선택
+        market_cap_df = market_cap_df.sort_values('시가총액', ascending=False)
+        top_tickers = market_cap_df.head(400).index.tolist()
         
         st.info(f"📊 시가총액 상위 {len(top_tickers)}개 종목에서 20일 신고가 종목 검색 중...")
         
