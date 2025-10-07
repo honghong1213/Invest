@@ -284,6 +284,272 @@ def create_chart(data, title):
     
     return fig
 
+def create_simple_chart(data, title):
+    """
+    가격 차트만 있는 간단한 차트 생성 (보조지표 제외)
+    """
+    fig = go.Figure()
+    
+    # 캔들스틱 차트 (상승: 빨강, 하락: 파랑)
+    fig.add_trace(
+        go.Candlestick(
+            x=data.index,
+            open=data['Open'],
+            high=data['High'],
+            low=data['Low'],
+            close=data['Close'],
+            name='가격',
+            increasing_line_color='red',
+            decreasing_line_color='blue',
+            increasing_fillcolor='red',
+            decreasing_fillcolor='blue'
+        )
+    )
+    
+    # 이동평균선
+    fig.add_trace(go.Scatter(x=data.index, y=data['MA20'], name='MA20', line=dict(color='orange', width=1)))
+    fig.add_trace(go.Scatter(x=data.index, y=data['MA50'], name='MA50', line=dict(color='blue', width=1)))
+    fig.add_trace(go.Scatter(x=data.index, y=data['MA200'], name='MA200', line=dict(color='red', width=1)))
+    
+    # 볼린저 밴드
+    fig.add_trace(go.Scatter(x=data.index, y=data['BB_Upper'], name='BB Upper', line=dict(color='gray', width=1, dash='dash')))
+    fig.add_trace(go.Scatter(x=data.index, y=data['BB_Lower'], name='BB Lower', line=dict(color='gray', width=1, dash='dash')))
+    
+    # 일목균형표
+    fig.add_trace(go.Scatter(x=data.index, y=data['Ichimoku_Conversion'], name='전환선(9)', line=dict(color='cyan', width=1)))
+    fig.add_trace(go.Scatter(x=data.index, y=data['Ichimoku_Base'], name='기준선(26)', line=dict(color='magenta', width=1)))
+    
+    # 후행스팬 (26일 뒤로 이동)
+    fig.add_trace(go.Scatter(x=data.index, y=data['Ichimoku_Lagging'], name='후행스팬(26)', line=dict(color='orange', width=1, dash='dot')))
+    
+    # 일목균형표 구름대 - 양운(빨강)과 음운(파랑) 구분
+    for i in range(len(data)):
+        if i == 0:
+            continue
+        
+        span_a_curr = data['Ichimoku_A'].iloc[i]
+        span_b_curr = data['Ichimoku_B'].iloc[i]
+        span_a_prev = data['Ichimoku_A'].iloc[i-1]
+        span_b_prev = data['Ichimoku_B'].iloc[i-1]
+        
+        # 양운 (선행스팬A > 선행스팬B): 빨간색
+        if span_a_curr >= span_b_curr:
+            fig.add_trace(go.Scatter(
+                x=[data.index[i-1], data.index[i]],
+                y=[span_a_prev, span_a_curr],
+                fill=None,
+                mode='lines',
+                line=dict(width=0),
+                showlegend=False,
+                hoverinfo='skip'
+            ))
+            
+            fig.add_trace(go.Scatter(
+                x=[data.index[i-1], data.index[i]],
+                y=[span_b_prev, span_b_curr],
+                fill='tonexty',
+                mode='lines',
+                line=dict(width=0),
+                fillcolor='rgba(255, 0, 0, 0.2)',
+                showlegend=False,
+                hoverinfo='skip'
+            ))
+        # 음운 (선행스팬A < 선행스팬B): 파란색
+        else:
+            fig.add_trace(go.Scatter(
+                x=[data.index[i-1], data.index[i]],
+                y=[span_a_prev, span_a_curr],
+                fill=None,
+                mode='lines',
+                line=dict(width=0),
+                showlegend=False,
+                hoverinfo='skip'
+            ))
+            
+            fig.add_trace(go.Scatter(
+                x=[data.index[i-1], data.index[i]],
+                y=[span_b_prev, span_b_curr],
+                fill='tonexty',
+                mode='lines',
+                line=dict(width=0),
+                fillcolor='rgba(0, 0, 255, 0.2)',
+                showlegend=False,
+                hoverinfo='skip'
+            ))
+    
+    # 선행스팬 라인 표시
+    fig.add_trace(go.Scatter(
+        x=data.index, 
+        y=data['Ichimoku_A'], 
+        name='선행스팬A', 
+        line=dict(color='green', width=1),
+        showlegend=True
+    ))
+    
+    fig.add_trace(go.Scatter(
+        x=data.index, 
+        y=data['Ichimoku_B'], 
+        name='선행스팬B', 
+        line=dict(color='red', width=1),
+        showlegend=True
+    ))
+    
+    # 레이아웃 업데이트
+    fig.update_layout(
+        title=title,
+        height=600,
+        showlegend=True,
+        xaxis_rangeslider_visible=False,
+        hovermode='x unified'
+    )
+    
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='LightGray')
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightGray')
+    
+    return fig
+
+def create_mini_chart(data, title):
+    """
+    미니 차트 생성 (종목 스크리닝용)
+    """
+    mini_fig = go.Figure()
+    mini_fig.add_trace(go.Candlestick(
+        x=data.index[-60:],
+        open=data['Open'][-60:],
+        high=data['High'][-60:],
+        low=data['Low'][-60:],
+        close=data['Close'][-60:],
+        increasing_line_color='red',
+        decreasing_line_color='blue',
+        increasing_fillcolor='red',
+        decreasing_fillcolor='blue',
+        showlegend=False,
+        name='가격'
+    ))
+    
+    # 이동평균선 추가
+    mini_fig.add_trace(go.Scatter(
+        x=data.index[-60:],
+        y=data['MA20'][-60:],
+        name='MA20',
+        line=dict(color='orange', width=1)
+    ))
+    
+    # 볼린저밴드 추가
+    mini_fig.add_trace(go.Scatter(
+        x=data.index[-60:],
+        y=data['BB_Upper'][-60:],
+        name='BB상단',
+        line=dict(color='gray', width=1, dash='dash'),
+        showlegend=False
+    ))
+    
+    mini_fig.add_trace(go.Scatter(
+        x=data.index[-60:],
+        y=data['BB_Lower'][-60:],
+        name='BB하단',
+        line=dict(color='gray', width=1, dash='dash'),
+        fill='tonexty',
+        fillcolor='rgba(128, 128, 128, 0.1)',
+        showlegend=False
+    ))
+    
+    # 후행스팬 추가
+    mini_fig.add_trace(go.Scatter(
+        x=data.index[-60:],
+        y=data['Ichimoku_Lagging'][-60:],
+        name='후행스팬',
+        line=dict(color='orange', width=2, dash='dot')
+    ))
+    
+    mini_fig.update_layout(
+        title=title,
+        height=250,
+        margin=dict(l=0, r=0, t=30, b=0),
+        xaxis_rangeslider_visible=False,
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+            font=dict(size=8)
+        ),
+        xaxis=dict(showticklabels=False),
+        yaxis=dict(side='right')
+    )
+    
+    return mini_fig
+
+def screen_kospi_stocks():
+    """
+    KOSPI 전체 종목 스크리닝
+    1. 20일 신고가 종목
+    2. 후행스팬이 볼린저밴드 상단을 뚫은 종목
+    """
+    # KOSPI 주요 종목 리스트 (상위 50개)
+    kospi_symbols = {
+        "삼성전자": "005930.KS",
+        "SK하이닉스": "000660.KS",
+        "LG에너지솔루션": "373220.KS",
+        "삼성바이오로직스": "207940.KS",
+        "현대차": "005380.KS",
+        "기아": "000270.KS",
+        "NAVER": "035420.KS",
+        "삼성SDI": "006400.KS",
+        "포스코홀딩스": "005490.KS",
+        "셀트리온": "068270.KS",
+        "KB금융": "105560.KS",
+        "신한지주": "055550.KS",
+        "LG화학": "051910.KS",
+        "현대모비스": "012330.KS",
+        "카카오": "035720.KS",
+        "삼성물산": "028260.KS",
+        "LG전자": "066570.KS",
+        "POSCO DX": "022100.KS",
+        "HD현대일렉트릭": "267260.KS",
+        "HMM": "011200.KS",
+    }
+    
+    new_high_stocks = []
+    bb_breakthrough_stocks = []
+    
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    total = len(kospi_symbols)
+    
+    for idx, (name, symbol) in enumerate(kospi_symbols.items()):
+        try:
+            status_text.text(f"분석 중: {name} ({idx+1}/{total})")
+            progress_bar.progress((idx + 1) / total)
+            
+            data = load_data(symbol, period="3mo")
+            if data is None or data.empty:
+                continue
+            
+            data = calculate_indicators(data)
+            latest = data.iloc[-1]
+            
+            # 1. 20일 신고가 체크
+            high_20d = data['High'][-20:].max()
+            if latest['Close'] >= high_20d * 0.99:  # 99% 이상이면 신고가 근처
+                new_high_stocks.append((name, symbol, data))
+            
+            # 2. 후행스팬이 볼린저밴드 상단 돌파 체크
+            if pd.notna(latest['Ichimoku_Lagging']) and pd.notna(latest['BB_Upper']):
+                if latest['Ichimoku_Lagging'] > latest['BB_Upper']:
+                    bb_breakthrough_stocks.append((name, symbol, data))
+        
+        except Exception as e:
+            continue
+    
+    progress_bar.empty()
+    status_text.empty()
+    
+    return new_high_stocks, bb_breakthrough_stocks
+
 def display_metrics(data, name):
     """
     주요 지표 표시
@@ -295,7 +561,7 @@ def display_metrics(data, name):
     price_change = current_price - previous['Close']
     price_change_pct = (price_change / previous['Close']) * 100
     
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2 = st.columns(2)
     
     with col1:
         st.metric(
@@ -305,29 +571,11 @@ def display_metrics(data, name):
         )
     
     with col2:
-        st.metric(
-            label="거래량",
-            value=f"{latest['Volume']:,.0f}"
-        )
-    
-    with col3:
         rsi_value = latest['RSI']
         rsi_status = "과매수" if rsi_value > 70 else "과매도" if rsi_value < 30 else "중립"
         st.metric(
             label=f"RSI ({rsi_status})",
             value=f"{rsi_value:.2f}"
-        )
-    
-    with col4:
-        st.metric(
-            label="52주 최고",
-            value=f"{data['High'].tail(252).max():,.2f}"
-        )
-    
-    with col5:
-        st.metric(
-            label="52주 최저",
-            value=f"{data['Low'].tail(252).min():,.2f}"
         )
 
 # ==================== 메인 앱 ====================
@@ -579,96 +827,54 @@ elif view_mode == "🔍 상세 분석":
         
         st.markdown("---")
         
-        # 차트 표시
-        st.subheader(f"📈 {selected_asset} 차트 분석")
-        chart = create_chart(data_with_indicators, selected_asset)
-        st.plotly_chart(chart, use_container_width=True)
+        # 간단한 가격 차트만 표시
+        st.subheader(f"📈 {selected_asset} 가격 차트")
+        simple_chart = create_simple_chart(data_with_indicators, selected_asset)
+        st.plotly_chart(simple_chart, use_container_width=True)
         
-        # 추가 분석 정보
-        st.markdown("---")
-        st.subheader("🔍 기술적 분석 요약")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("#### 이동평균선 분석")
-            latest = data_with_indicators.iloc[-1]
-            current_price = latest['Close']
+        # KOSPI 선택 시 종목 스크리닝 결과 표시
+        if selected_asset == "🇰🇷 KOSPI":
+            st.markdown("---")
+            st.subheader("🔍 KOSPI 종목 스크리닝")
             
-            ma_analysis = []
-            if current_price > latest['MA20']:
-                ma_analysis.append("✅ 20일 이평선 위")
-            else:
-                ma_analysis.append("❌ 20일 이평선 아래")
-                
-            if current_price > latest['MA50']:
-                ma_analysis.append("✅ 50일 이평선 위")
-            else:
-                ma_analysis.append("❌ 50일 이평선 아래")
-                
-            if current_price > latest['MA200']:
-                ma_analysis.append("✅ 200일 이평선 위")
-            else:
-                ma_analysis.append("❌ 200일 이평선 아래")
+            with st.spinner("KOSPI 종목 분석 중..."):
+                new_high_stocks, bb_breakthrough_stocks = screen_kospi_stocks()
             
-            for analysis in ma_analysis:
-                st.write(analysis)
-            
-            st.markdown("#### 일목균형표 분석")
-            # 일목균형표 신호
-            if current_price > latest['Ichimoku_Base']:
-                st.write("✅ 기준선(26) 위")
+            # 20일 신고가 종목
+            st.markdown("### 📈 20일 신고가 종목")
+            if new_high_stocks:
+                cols = st.columns(min(3, len(new_high_stocks)))
+                for idx, (name, symbol, stock_data) in enumerate(new_high_stocks):
+                    with cols[idx % 3]:
+                        st.markdown(f"**{name}**")
+                        latest = stock_data.iloc[-1]
+                        prev = stock_data.iloc[-2]
+                        change_pct = ((latest['Close'] - prev['Close']) / prev['Close']) * 100
+                        st.metric("현재가", f"{latest['Close']:,.0f}원", f"{change_pct:+.2f}%")
+                        
+                        mini_chart = create_mini_chart(stock_data, name)
+                        st.plotly_chart(mini_chart, use_container_width=True)
             else:
-                st.write("❌ 기준선(26) 아래")
+                st.info("해당 조건을 만족하는 종목이 없습니다.")
             
-            if latest['Ichimoku_Conversion'] > latest['Ichimoku_Base']:
-                st.write("🟢 전환선 > 기준선 (상승)")
-            else:
-                st.write("🔴 전환선 < 기준선 (하락)")
+            st.markdown("---")
             
-            if latest['Ichimoku_A'] > latest['Ichimoku_B']:
-                st.write("🟢 구름대: 양운 (상승)")
+            # 후행스팬이 볼린저밴드 상단 돌파 종목
+            st.markdown("### � 후행스팬 > 볼린저밴드 상단")
+            if bb_breakthrough_stocks:
+                cols = st.columns(min(3, len(bb_breakthrough_stocks)))
+                for idx, (name, symbol, stock_data) in enumerate(bb_breakthrough_stocks):
+                    with cols[idx % 3]:
+                        st.markdown(f"**{name}**")
+                        latest = stock_data.iloc[-1]
+                        prev = stock_data.iloc[-2]
+                        change_pct = ((latest['Close'] - prev['Close']) / prev['Close']) * 100
+                        st.metric("현재가", f"{latest['Close']:,.0f}원", f"{change_pct:+.2f}%")
+                        
+                        mini_chart = create_mini_chart(stock_data, name)
+                        st.plotly_chart(mini_chart, use_container_width=True)
             else:
-                st.write("🔴 구름대: 음운 (하락)")
-        
-        with col2:
-            st.markdown("#### 보조지표 신호")
-            
-            # RSI 신호
-            rsi = latest['RSI']
-            if rsi > 70:
-                st.write("🔴 RSI 과매수 구간 (매도 고려)")
-            elif rsi < 30:
-                st.write("🟢 RSI 과매도 구간 (매수 고려)")
-            else:
-                st.write("🟡 RSI 중립 구간")
-            
-            # Stochastic 신호
-            stoch_k = latest['Stoch_K']
-            stoch_d = latest['Stoch_D']
-            if stoch_k > 80 and stoch_d > 80:
-                st.write("🔴 Stochastic 과매수 구간")
-            elif stoch_k < 20 and stoch_d < 20:
-                st.write("🟢 Stochastic 과매도 구간")
-            else:
-                if stoch_k > stoch_d:
-                    st.write("🟢 Stochastic 상승 크로스")
-                else:
-                    st.write("🔴 Stochastic 하락 크로스")
-            
-            # MACD 신호
-            if latest['MACD'] > latest['MACD_Signal']:
-                st.write("🟢 MACD 상승 시그널")
-            else:
-                st.write("🔴 MACD 하락 시그널")
-            
-            # 볼린저 밴드
-            if current_price > latest['BB_Upper']:
-                st.write("🔴 볼린저 밴드 상단 돌파")
-            elif current_price < latest['BB_Lower']:
-                st.write("🟢 볼린저 밴드 하단 돌파")
-            else:
-                st.write("🟡 볼린저 밴드 내부")
+                st.info("해당 조건을 만족하는 종목이 없습니다.")
 
     else:
         st.error(f"❌ {selected_asset} 데이터를 불러올 수 없습니다. 다른 자산을 선택해주세요.")
