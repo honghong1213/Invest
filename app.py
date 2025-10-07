@@ -486,7 +486,8 @@ def create_mini_chart(data, title):
 def screen_kospi_stocks():
     """
     KOSPI 전체 상장사 스크리닝 (약 960개)
-    조건: 20일 신고가 AND 후행스팬이 볼린저밴드 상단을 돌파한 종목
+    1단계: 20일 신고가 종목만 빠르게 필터링
+    2단계: 차트로 시각화하여 사용자가 직접 확인
     """
     
     try:
@@ -504,7 +505,7 @@ def screen_kospi_stocks():
             except:
                 continue
         
-        st.info(f"📊 KOSPI 전체 {len(kospi_symbols)}개 종목 분석 시작...")
+        st.info(f"📊 KOSPI 전체 {len(kospi_symbols)}개 종목에서 20일 신고가 종목 검색 중...")
         
     except Exception as e:
         st.warning(f"⚠️ pykrx로 종목 리스트를 가져오는 데 실패했습니다: {str(e)}")
@@ -527,7 +528,7 @@ def screen_kospi_stocks():
             "NAVER": "035420.KS", "카카오": "035720.KS", "삼성물산": "028260.KS",
         }
     
-    qualified_stocks = []
+    new_high_stocks = []
     
     progress_bar = st.progress(0)
     status_text = st.empty()
@@ -536,36 +537,31 @@ def screen_kospi_stocks():
     processed = 0
     errors = 0
     
+    # 1단계: 20일 신고가 종목만 빠르게 필터링 (지표 계산 없이)
     for idx, (name, symbol) in enumerate(kospi_symbols.items()):
         try:
-            status_text.text(f"분석 중: {name} ({idx+1}/{total}) | 조건 충족: {len(qualified_stocks)}개 | 오류: {errors}개")
+            status_text.text(f"검색 중: {name} ({idx+1}/{total}) | 20일 신고가: {len(new_high_stocks)}개 | 오류: {errors}개")
             progress_bar.progress((idx + 1) / total)
             
-            # 데이터 로드 (3개월)
-            data = load_data(symbol, period="3mo")
-            if data is None or data.empty or len(data) < 30:
+            # 최소한의 데이터만 로드 (1개월)
+            data = load_data(symbol, period="1mo")
+            if data is None or data.empty or len(data) < 20:
                 errors += 1
                 continue
             
-            # 지표 계산
-            data = calculate_indicators(data)
             latest = data.iloc[-1]
             
-            # 필수 지표가 없으면 스킵
-            if pd.isna(latest['RSI']) or pd.isna(latest['Ichimoku_Lagging']) or pd.isna(latest['BB_Upper']):
-                errors += 1
-                continue
-            
-            # 1. 20일 신고가 체크
+            # 20일 신고가 체크 (지표 계산 없이 단순 비교만)
             high_20d = data['High'][-20:].max()
             is_new_high = latest['Close'] >= high_20d * 0.99  # 99% 이상이면 신고가 근처
             
-            # 2. 후행스팬이 볼린저밴드 상단 돌파 체크
-            is_lagging_above_bb = latest['Ichimoku_Lagging'] > latest['BB_Upper']
-            
-            # 두 조건을 모두 만족하는 종목만 추가
-            if is_new_high and is_lagging_above_bb:
-                qualified_stocks.append((name, symbol, data, latest))
+            if is_new_high:
+                # 신고가 종목 발견 시 3개월 데이터로 지표 계산
+                data_3m = load_data(symbol, period="3mo")
+                if data_3m is not None and not data_3m.empty:
+                    data_with_indicators = calculate_indicators(data_3m)
+                    latest_with_indicators = data_with_indicators.iloc[-1]
+                    new_high_stocks.append((name, symbol, data_with_indicators, latest_with_indicators))
             
             processed += 1
         
@@ -576,12 +572,12 @@ def screen_kospi_stocks():
     progress_bar.empty()
     status_text.empty()
     
-    # RSI 높은 순으로 정렬
-    qualified_stocks.sort(key=lambda x: x[3]['RSI'] if pd.notna(x[3]['RSI']) else 0, reverse=True)
+    # 등락률 높은 순으로 정렬 (모멘텀 강한 종목 우선)
+    new_high_stocks.sort(key=lambda x: ((x[3]['Close'] - x[2].iloc[-2]['Close']) / x[2].iloc[-2]['Close']) * 100, reverse=True)
     
-    st.success(f"✅ 분석 완료: 총 {processed}개 종목 처리, {len(qualified_stocks)}개 종목 조건 충족")
+    st.success(f"✅ 분석 완료: 총 {processed}개 종목 처리, {len(new_high_stocks)}개 종목이 20일 신고가 달성")
     
-    return qualified_stocks
+    return new_high_stocks
 
 def display_metrics(data, name):
     """
@@ -870,23 +866,23 @@ elif view_mode == "🔍 상세 분석":
             st.markdown("---")
             st.subheader("🔍 KOSPI 종목 스크리닝")
             
-            with st.spinner("KOSPI 전체 상장사 분석 중... (약 5-10분 소요, 960개 종목)"):
-                qualified_stocks = screen_kospi_stocks()
+            with st.spinner("KOSPI 전체 상장사에서 20일 신고가 종목 검색 중... (약 2-3분 소요)"):
+                new_high_stocks = screen_kospi_stocks()
             
-            # 조건을 만족하는 종목 표시
-            st.info("📊 조건: 20일 신고가 AND 후행스팬 > 볼린저밴드 상단")
+            # 20일 신고가 종목 표시
+            st.info("📊 조건: 20일 신고가 종목 (차트에서 후행스팬과 볼린저밴드를 직접 확인하세요)")
             
-            if qualified_stocks:
-                st.success(f"✅ {len(qualified_stocks)}개 종목이 조건을 만족합니다!")
+            if new_high_stocks:
+                st.success(f"✅ {len(new_high_stocks)}개 종목이 20일 신고가를 달성했습니다!")
                 
                 # 3열로 표시
                 num_cols = 3
-                for i in range(0, len(qualified_stocks), num_cols):
+                for i in range(0, len(new_high_stocks), num_cols):
                     cols = st.columns(num_cols)
                     for j in range(num_cols):
                         idx = i + j
-                        if idx < len(qualified_stocks):
-                            name, symbol, stock_data, latest_data = qualified_stocks[idx]
+                        if idx < len(new_high_stocks):
+                            name, symbol, stock_data, latest_data = new_high_stocks[idx]
                             
                             with cols[j]:
                                 st.markdown(f"### {name}")
@@ -899,19 +895,33 @@ elif view_mode == "🔍 상세 분석":
                                 else:
                                     st.metric("현재가", f"{latest_data['Close']:,.0f}원")
                                 
-                                # RSI 표시
-                                rsi = latest_data['RSI']
-                                if pd.notna(rsi):
-                                    st.metric("RSI", f"{rsi:.1f}")
+                                # 기술적 지표 표시
+                                col1, col2, col3 = st.columns(3)
+                                with col1:
+                                    rsi = latest_data['RSI']
+                                    if pd.notna(rsi):
+                                        st.metric("RSI", f"{rsi:.1f}")
+                                with col2:
+                                    # 후행스팬과 BB상단 비교
+                                    if pd.notna(latest_data['Ichimoku_Lagging']) and pd.notna(latest_data['BB_Upper']):
+                                        lagging = latest_data['Ichimoku_Lagging']
+                                        bb_upper = latest_data['BB_Upper']
+                                        breakthrough = "✅" if lagging > bb_upper else "❌"
+                                        st.metric("후행>BB", breakthrough)
+                                with col3:
+                                    # 20일 신고가 달성률
+                                    high_20d = stock_data['High'][-20:].max()
+                                    achievement = (latest_data['Close'] / high_20d) * 100
+                                    st.metric("신고가", f"{achievement:.1f}%")
                                 
-                                # 미니 차트
-                                mini_chart = create_mini_chart(stock_data, name)
-                                st.plotly_chart(mini_chart, use_container_width=True)
+                                # 상세 차트 (후행스팬, 볼린저밴드 포함)
+                                chart = create_simple_chart(stock_data, name)
+                                st.plotly_chart(chart, use_container_width=True)
                                 
                                 st.markdown("---")
             else:
-                st.warning("⚠️ 현재 조건을 만족하는 종목이 없습니다.")
-                st.info("💡 팁: 시장 상황에 따라 조건을 만족하는 종목이 없을 수 있습니다.")
+                st.warning("⚠️ 현재 20일 신고가를 달성한 종목이 없습니다.")
+                st.info("💡 팁: 시장 조정 시기에는 신고가 종목이 적을 수 있습니다.")
 
 
     else:
