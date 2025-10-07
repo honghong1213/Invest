@@ -726,33 +726,7 @@ def display_metrics(data, name):
     price_change = current_price - previous['Close']
     price_change_pct = (price_change / previous['Close']) * 100
     
-    # ADR (Advance Decline Ratio) 계산 - 최근 20일
-    # ADR = (상승일수 합 / 하락일수 합) * 100
-    # 120% 이상: 과열권, 75% 이하: 바닥권
-    recent_data = data.tail(20)
-    
-    # 전일 대비 상승/하락 계산
-    price_changes = recent_data['Close'].diff()
-    up_days = price_changes[price_changes > 0].sum()
-    down_days = abs(price_changes[price_changes < 0].sum())
-    
-    if down_days != 0:
-        adr = (up_days / down_days) * 100
-    else:
-        adr = 200.0  # 하락일이 없으면 매우 강세
-    
-    # ADR 상태 판단
-    if adr >= 120:
-        adr_status = "과열"
-        adr_color = "inverse"
-    elif adr <= 75:
-        adr_status = "바닥"
-        adr_color = "normal"
-    else:
-        adr_status = "중립"
-        adr_color = "off"
-    
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     
     with col1:
         st.metric(
@@ -767,14 +741,6 @@ def display_metrics(data, name):
         st.metric(
             label=f"RSI ({rsi_status})",
             value=f"{rsi_value:.2f}"
-        )
-    
-    with col3:
-        st.metric(
-            label=f"ADR ({adr_status})",
-            value=f"{adr:.1f}%",
-            help="상승종목 합/하락종목 합 × 100\n120% 이상: 과열권\n75% 이하: 바닥권",
-            delta_color=adr_color
         )
 
 # ==================== 메인 앱 ====================
