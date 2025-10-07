@@ -1,4 +1,4 @@
-import streamlit as st
+﻿import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -25,15 +25,15 @@ st.set_page_config(
 # 자산 정의
 ASSETS = {
     "주가지수": {
-        "🇰🇷 KOSPI": "^KS11",
-        "�🇷 KOSDAQ": "^KQ11",
-        "�🇺🇸 S&P 500": "^GSPC",
-        "🇺🇸 나스닥": "^IXIC",
-        "🇺🇸 다우존스": "^DJI",
-        "🇨🇳 상해종합": "000001.SS",
-        "🇯🇵 닛케이225": "^N225",
-        "🇩🇪 DAX": "^GDAXI",
-        "🇬🇧 FTSE 100": "^FTSE",
+        "KOSPI": "^KS11",
+        "KOSDAQ": "^KQ11",
+        "S&P 500": "^GSPC",
+        "나스닥": "^IXIC",
+        "다우존스": "^DJI",
+        "상해종합": "000001.SS",
+        "닛케이225": "^N225",
+        "DAX": "^GDAXI",
+        "FTSE 100": "^FTSE",
     },
     "채권": {
         "미국 10년 국채": "^TNX",
@@ -612,7 +612,7 @@ def screen_stocks_by_market(market_type="KOSPI"):
                 # 유통/서비스 대형주
                 "신세계": "004170.KS", "롯데쇼핑": "023530.KS", "CJ제일제당": "097950.KS",
             }
-        else:  # KOSDAQ
+        else:  #KOSDAQ
             symbols_dict = {
                 # 주요 코스닥 대형주
                 "에코프로비엠": "247540.KQ", "엘앤에프": "066970.KQ", "알테오젠": "196170.KQ",
@@ -726,11 +726,31 @@ def display_metrics(data, name):
     price_change = current_price - previous['Close']
     price_change_pct = (price_change / previous['Close']) * 100
     
-    # ADR (Average Daily Range) 계산 - 최근 20일 평균
-    # ADR = 평균 (고가 - 저가) / 저가 * 100
+    # ADR (Advance Decline Ratio) 계산 - 최근 20일
+    # ADR = (상승일수 합 / 하락일수 합) * 100
+    # 120% 이상: 과열권, 75% 이하: 바닥권
     recent_data = data.tail(20)
-    daily_ranges = ((recent_data['High'] - recent_data['Low']) / recent_data['Low']) * 100
-    adr = daily_ranges.mean()
+    
+    # 전일 대비 상승/하락 계산
+    price_changes = recent_data['Close'].diff()
+    up_days = price_changes[price_changes > 0].sum()
+    down_days = abs(price_changes[price_changes < 0].sum())
+    
+    if down_days != 0:
+        adr = (up_days / down_days) * 100
+    else:
+        adr = 200.0  # 하락일이 없으면 매우 강세
+    
+    # ADR 상태 판단
+    if adr >= 120:
+        adr_status = "과열"
+        adr_color = "inverse"
+    elif adr <= 75:
+        adr_status = "바닥"
+        adr_color = "normal"
+    else:
+        adr_status = "중립"
+        adr_color = "off"
     
     col1, col2, col3 = st.columns(3)
     
@@ -751,9 +771,10 @@ def display_metrics(data, name):
     
     with col3:
         st.metric(
-            label="ADR (20일)",
-            value=f"{adr:.2f}%",
-            help="평균 일간 변동폭 = 평균(고가-저가)/저가 * 100"
+            label=f"ADR ({adr_status})",
+            value=f"{adr:.1f}%",
+            help="상승종목 합/하락종목 합 × 100\n120% 이상: 과열권\n75% 이하: 바닥권",
+            delta_color=adr_color
         )
 
 # ==================== 메인 앱 ====================
@@ -995,7 +1016,7 @@ elif view_mode == "🔍 상세 분석":
     with st.spinner(f'{selected_asset} 데이터 로딩 중...'):
         data = load_data(ticker, period=period_options[selected_period])
 
-    # KOSPI 또는 KOSDAQ 선택 시 종목 스크리닝 먼저 실행 (지수 데이터와 무관)
+    # KOSPI 또는KOSDAQ 선택 시 종목 스크리닝 먼저 실행 (지수 데이터와 무관)
     if "KOSPI" in selected_asset or "KOSDAQ" in selected_asset:
         market_type = "KOSPI" if "KOSPI" in selected_asset else "KOSDAQ"
         market_display = "코스피" if market_type == "KOSPI" else "코스닥"
@@ -1108,3 +1129,4 @@ st.markdown("""
     <p>이 대시보드는 정보 제공 목적이며, 투자 조언이 아닙니다.</p>
 </div>
 """, unsafe_allow_html=True)
+
