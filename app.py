@@ -837,44 +837,49 @@ elif view_mode == "🔍 상세 분석":
             st.markdown("---")
             st.subheader("🔍 KOSPI 종목 스크리닝")
             
-            with st.spinner("KOSPI 종목 분석 중..."):
-                new_high_stocks, bb_breakthrough_stocks = screen_kospi_stocks()
+            with st.spinner("KOSPI 100개 종목 분석 중... (약 1-2분 소요)"):
+                qualified_stocks = screen_kospi_stocks()
             
-            # 20일 신고가 종목
-            st.markdown("### 📈 20일 신고가 종목")
-            if new_high_stocks:
-                cols = st.columns(min(3, len(new_high_stocks)))
-                for idx, (name, symbol, stock_data) in enumerate(new_high_stocks):
-                    with cols[idx % 3]:
-                        st.markdown(f"**{name}**")
-                        latest = stock_data.iloc[-1]
-                        prev = stock_data.iloc[-2]
-                        change_pct = ((latest['Close'] - prev['Close']) / prev['Close']) * 100
-                        st.metric("현재가", f"{latest['Close']:,.0f}원", f"{change_pct:+.2f}%")
-                        
-                        mini_chart = create_mini_chart(stock_data, name)
-                        st.plotly_chart(mini_chart, use_container_width=True)
+            # 조건을 만족하는 종목 표시
+            st.info("📊 조건: 20일 신고가 AND 후행스팬 > 볼린저밴드 상단")
+            
+            if qualified_stocks:
+                st.success(f"✅ {len(qualified_stocks)}개 종목이 조건을 만족합니다!")
+                
+                # 3열로 표시
+                num_cols = 3
+                for i in range(0, len(qualified_stocks), num_cols):
+                    cols = st.columns(num_cols)
+                    for j in range(num_cols):
+                        idx = i + j
+                        if idx < len(qualified_stocks):
+                            name, symbol, stock_data, latest_data = qualified_stocks[idx]
+                            
+                            with cols[j]:
+                                st.markdown(f"### {name}")
+                                
+                                # 현재가 및 등락률
+                                if len(stock_data) >= 2:
+                                    prev = stock_data.iloc[-2]
+                                    change_pct = ((latest_data['Close'] - prev['Close']) / prev['Close']) * 100
+                                    st.metric("현재가", f"{latest_data['Close']:,.0f}원", f"{change_pct:+.2f}%")
+                                else:
+                                    st.metric("현재가", f"{latest_data['Close']:,.0f}원")
+                                
+                                # RSI 표시
+                                rsi = latest_data['RSI']
+                                if pd.notna(rsi):
+                                    st.metric("RSI", f"{rsi:.1f}")
+                                
+                                # 미니 차트
+                                mini_chart = create_mini_chart(stock_data, name)
+                                st.plotly_chart(mini_chart, use_container_width=True)
+                                
+                                st.markdown("---")
             else:
-                st.info("해당 조건을 만족하는 종목이 없습니다.")
-            
-            st.markdown("---")
-            
-            # 후행스팬이 볼린저밴드 상단 돌파 종목
-            st.markdown("### � 후행스팬 > 볼린저밴드 상단")
-            if bb_breakthrough_stocks:
-                cols = st.columns(min(3, len(bb_breakthrough_stocks)))
-                for idx, (name, symbol, stock_data) in enumerate(bb_breakthrough_stocks):
-                    with cols[idx % 3]:
-                        st.markdown(f"**{name}**")
-                        latest = stock_data.iloc[-1]
-                        prev = stock_data.iloc[-2]
-                        change_pct = ((latest['Close'] - prev['Close']) / prev['Close']) * 100
-                        st.metric("현재가", f"{latest['Close']:,.0f}원", f"{change_pct:+.2f}%")
-                        
-                        mini_chart = create_mini_chart(stock_data, name)
-                        st.plotly_chart(mini_chart, use_container_width=True)
-            else:
-                st.info("해당 조건을 만족하는 종목이 없습니다.")
+                st.warning("⚠️ 현재 조건을 만족하는 종목이 없습니다.")
+                st.info("💡 팁: 시장 상황에 따라 조건을 만족하는 종목이 없을 수 있습니다.")
+
 
     else:
         st.error(f"❌ {selected_asset} 데이터를 불러올 수 없습니다. 다른 자산을 선택해주세요.")
