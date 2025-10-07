@@ -26,7 +26,8 @@ st.set_page_config(
 ASSETS = {
     "주가지수": {
         "🇰🇷 KOSPI": "^KS11",
-        "🇺🇸 S&P 500": "^GSPC",
+        "�🇷 KOSDAQ": "^KQ11",
+        "�🇺🇸 S&P 500": "^GSPC",
         "🇺🇸 나스닥": "^IXIC",
         "🇺🇸 다우존스": "^DJI",
         "🇨🇳 상해종합": "000001.SS",
@@ -538,22 +539,27 @@ def get_operating_income_change(ticker_code):
         return None
 
 
-def screen_kospi_stocks():
+def screen_stocks_by_market(market_type="KOSPI"):
     """
-    KOSPI 우량기업 스크리닝
+    시장별 우량기업 스크리닝
+    market_type: "KOSPI" 또는 "KOSDAQ"
     대상: 시가총액 상위 400개 종목 (대형주 + 중형주)
     조건: ① 20일 신고가 98% 이상 + ② 거래량 20% 이상 증가 + ③ 60일선 위
     """
     
+    # yfinance 접미사 결정
+    suffix = ".KS" if market_type == "KOSPI" else ".KQ"
+    market_display = "코스피" if market_type == "KOSPI" else "코스닥"
+    
     try:
-        st.info(f"📊 시가총액 조회 중...")
+        st.info(f"📊 {market_display} 시가총액 조회 중...")
         
         # 최근 거래일 찾기 (최대 7일 전까지)
         market_cap_df = None
         for i in range(7):
             check_date = (datetime.now() - timedelta(days=i)).strftime("%Y%m%d")
             try:
-                df_temp = stock.get_market_cap_by_ticker(check_date, market="KOSPI")
+                df_temp = stock.get_market_cap_by_ticker(check_date, market=market_type)
                 if not df_temp.empty and df_temp['시가총액'].sum() > 0:
                     market_cap_df = df_temp
                     st.info(f"📊 기준일: {check_date[:4]}-{check_date[4:6]}-{check_date[6:]} 시가총액 데이터 사용")
@@ -568,15 +574,15 @@ def screen_kospi_stocks():
         market_cap_df = market_cap_df.sort_values('시가총액', ascending=False)
         top_tickers = market_cap_df.head(400).index.tolist()
         
-        st.info(f"📊 시가총액 상위 {len(top_tickers)}개 종목에서 20일 신고가 종목 검색 중...")
+        st.info(f"📊 {market_display} 시가총액 상위 {len(top_tickers)}개 종목에서 20일 신고가 종목 검색 중...")
         
         # 종목명 가져오기
-        kospi_symbols = {}
+        symbols_dict = {}
         for ticker in top_tickers:
             try:
                 name = stock.get_market_ticker_name(ticker)
-                # yfinance 형식으로 변환 (6자리 코드.KS)
-                kospi_symbols[name] = f"{ticker}.KS"
+                # yfinance 형식으로 변환
+                symbols_dict[name] = f"{ticker}{suffix}"
             except:
                 continue
         
@@ -585,38 +591,47 @@ def screen_kospi_stocks():
         st.info("💡 주요 우량주만으로 분석을 진행합니다...")
         
         # 실패 시 주요 우량주만 사용
-        kospi_symbols = {
-            # IT/반도체 대형주
-            "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "LG에너지솔루션": "373220.KS",
-            "삼성SDI": "006400.KS", "LG전자": "066570.KS", "삼성전기": "009150.KS",
-            "SK스퀘어": "402340.KS", "NAVER": "035420.KS", "카카오": "035720.KS",
-            # 바이오/제약 대형주
-            "삼성바이오로직스": "207940.KS", "셀트리온": "068270.KS", "셀트리온헬스케어": "091990.KS",
-            # 자동차 대형주
-            "현대차": "005380.KS", "기아": "000270.KS", "현대모비스": "012330.KS",
-            # 화학/소재 대형주
-            "LG화학": "051910.KS", "포스코홀딩스": "005490.KS", "SK이노베이션": "096770.KS",
-            "POSCO DX": "022100.KS", "롯데케미칼": "011170.KS",
-            # 금융 대형주
-            "KB금융": "105560.KS", "신한지주": "055550.KS", "하나금융지주": "086790.KS",
-            "우리금융지주": "316140.KS", "삼성생명": "032830.KS", "삼성화재": "000810.KS",
-            # 건설/중공업 대형주
-            "삼성물산": "028260.KS", "현대건설": "000720.KS", "HD현대": "267250.KS",
-            # 유통/서비스 대형주
-            "신세계": "004170.KS", "롯데쇼핑": "023530.KS", "CJ제일제당": "097950.KS",
-        }
+        if market_type == "KOSPI":
+            symbols_dict = {
+                # IT/반도체 대형주
+                "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "LG에너지솔루션": "373220.KS",
+                "삼성SDI": "006400.KS", "LG전자": "066570.KS", "삼성전기": "009150.KS",
+                "SK스퀘어": "402340.KS", "NAVER": "035420.KS", "카카오": "035720.KS",
+                # 바이오/제약 대형주
+                "삼성바이오로직스": "207940.KS", "셀트리온": "068270.KS", "셀트리온헬스케어": "091990.KS",
+                # 자동차 대형주
+                "현대차": "005380.KS", "기아": "000270.KS", "현대모비스": "012330.KS",
+                # 화학/소재 대형주
+                "LG화학": "051910.KS", "포스코홀딩스": "005490.KS", "SK이노베이션": "096770.KS",
+                "POSCO DX": "022100.KS", "롯데케미칼": "011170.KS",
+                # 금융 대형주
+                "KB금융": "105560.KS", "신한지주": "055550.KS", "하나금융지주": "086790.KS",
+                "우리금융지주": "316140.KS", "삼성생명": "032830.KS", "삼성화재": "000810.KS",
+                # 건설/중공업 대형주
+                "삼성물산": "028260.KS", "현대건설": "000720.KS", "HD현대": "267250.KS",
+                # 유통/서비스 대형주
+                "신세계": "004170.KS", "롯데쇼핑": "023530.KS", "CJ제일제당": "097950.KS",
+            }
+        else:  # KOSDAQ
+            symbols_dict = {
+                # 주요 코스닥 대형주
+                "에코프로비엠": "247540.KQ", "엘앤에프": "066970.KQ", "알테오젠": "196170.KQ",
+                "리노공업": "058470.KQ", "에코프로": "086520.KQ", "HLB": "028300.KQ",
+                "원익IPS": "240810.KQ", "파크시스템스": "140860.KQ", "씨젠": "096530.KQ",
+                "HPSP": "403870.KQ", "CJ ENM": "035760.KQ", "셀바스AI": "108860.KQ",
+            }
     
     new_high_stocks = []
     
     progress_bar = st.progress(0)
     status_text = st.empty()
     
-    total = len(kospi_symbols)
+    total = len(symbols_dict)
     processed = 0
     errors = 0
     
     # 1단계: 20일 신고가 종목만 빠르게 필터링 (지표 계산 없이)
-    for idx, (name, symbol) in enumerate(kospi_symbols.items()):
+    for idx, (name, symbol) in enumerate(symbols_dict.items()):
         try:
             status_text.text(f"검색 중: {name} ({idx+1}/{total}) | 조건 충족: {len(new_high_stocks)}개 | 오류: {errors}개")
             progress_bar.progress((idx + 1) / total)
@@ -669,7 +684,7 @@ def screen_kospi_stocks():
                     volume_increase_pct = ((recent_volume_avg - prev_volume_avg) / prev_volume_avg) * 100
                     
                     # 영업이익(EPS) 변동률 조회
-                    ticker_code = symbol.replace(".KS", "")  # "005930.KS" -> "005930"
+                    ticker_code = symbol.replace(".KS", "").replace(".KQ", "")  # "005930.KS" -> "005930"
                     eps_change = get_operating_income_change(ticker_code)
                     
                     new_high_stocks.append((name, symbol, data_with_indicators, latest_with_indicators, volume_increase_pct, eps_change))
@@ -686,9 +701,19 @@ def screen_kospi_stocks():
     # 거래량 증가율 높은 순으로 정렬 (거래 활발한 종목 우선)
     new_high_stocks.sort(key=lambda x: x[4], reverse=True)
     
-    st.success(f"✅ 분석 완료: 총 {processed}개 종목 처리, {len(new_high_stocks)}개 종목이 조건 충족 (신고가 98% + 거래량↑ + 60일선↑)")
+    st.success(f"✅ {market_display} 분석 완료: 총 {processed}개 종목 처리, {len(new_high_stocks)}개 종목이 조건 충족 (신고가 98% + 거래량↑ + 60일선↑)")
     
     return new_high_stocks
+
+
+def screen_kospi_stocks():
+    """KOSPI 스크리닝 (하위 호환성 유지)"""
+    return screen_stocks_by_market("KOSPI")
+
+
+def screen_kosdaq_stocks():
+    """KOSDAQ 스크리닝"""
+    return screen_stocks_by_market("KOSDAQ")
 
 def display_metrics(data, name):
     """
@@ -972,16 +997,22 @@ elif view_mode == "🔍 상세 분석":
         simple_chart = create_simple_chart(data_with_indicators, selected_asset)
         st.plotly_chart(simple_chart, use_container_width=True)
         
-        # KOSPI 선택 시 종목 스크리닝 결과 표시
-        if selected_asset == "🇰🇷 KOSPI":
-            st.markdown("---")
-            st.subheader("🔍 KOSPI 우량기업 스크리닝")
+        # KOSPI 또는 KOSDAQ 선택 시 종목 스크리닝 결과 표시
+        if selected_asset in ["🇰🇷 KOSPI", "🇰🇷 KOSDAQ"]:
+            market_type = "KOSPI" if selected_asset == "🇰🇷 KOSPI" else "KOSDAQ"
+            market_display = "코스피" if market_type == "KOSPI" else "코스닥"
             
-            with st.spinner("시가총액 상위 400개 종목에서 20일 신고가 종목 검색 중... (약 1-2분 소요)"):
-                new_high_stocks = screen_kospi_stocks()
+            st.markdown("---")
+            st.subheader(f"🔍 {market_display} 우량기업 스크리닝")
+            
+            with st.spinner(f"시가총액 상위 400개 종목에서 20일 신고가 종목 검색 중... (약 1-2분 소요)"):
+                if market_type == "KOSPI":
+                    new_high_stocks = screen_kospi_stocks()
+                else:
+                    new_high_stocks = screen_kosdaq_stocks()
             
             # 20일 신고가 종목 표시
-            st.info("📊 대상: 시가총액 상위 400개 | 조건: ① 신고가 98%↑ + ② 거래량 20%↑ + ③ 60일선↑")
+            st.info(f"📊 대상: {market_display} 시가총액 상위 400개 | 조건: ① 신고가 98%↑ + ② 거래량 20%↑ + ③ 60일선↑")
             
             if new_high_stocks:
                 st.success(f"✅ {len(new_high_stocks)}개 종목이 20일 신고가를 달성했습니다!")
