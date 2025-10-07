@@ -995,13 +995,9 @@ elif view_mode == "🔍 상세 분석":
     with st.spinner(f'{selected_asset} 데이터 로딩 중...'):
         data = load_data(ticker, period=period_options[selected_period])
 
-    # 디버깅: 선택된 자산 확인
-    st.write(f"DEBUG: selected_asset = '{selected_asset}'")
-    st.write(f"DEBUG: 조건 체크 = {selected_asset in ['🇰🇷 KOSPI', '🇰🇷 KOSDAQ']}")
-
     # KOSPI 또는 KOSDAQ 선택 시 종목 스크리닝 먼저 실행 (지수 데이터와 무관)
-    if selected_asset in ["🇰🇷 KOSPI", "🇰🇷 KOSDAQ"]:
-        market_type = "KOSPI" if selected_asset == "🇰🇷 KOSPI" else "KOSDAQ"
+    if "KOSPI" in selected_asset or "KOSDAQ" in selected_asset:
+        market_type = "KOSPI" if "KOSPI" in selected_asset else "KOSDAQ"
         market_display = "코스피" if market_type == "KOSPI" else "코스닥"
         
         st.markdown("---")
