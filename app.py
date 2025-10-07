@@ -559,15 +559,12 @@ def screen_stocks_by_market(market_type="KOSPI"):
         for i in range(7):
             check_date = (datetime.now() - timedelta(days=i)).strftime("%Y%m%d")
             try:
-                st.write(f"🔍 디버깅: {check_date} 날짜로 {market_type} 시가총액 조회 시도...")
                 df_temp = stock.get_market_cap_by_ticker(check_date, market=market_type)
-                st.write(f"✅ 데이터 수신: {len(df_temp)}개 종목")
                 if not df_temp.empty and df_temp['시가총액'].sum() > 0:
                     market_cap_df = df_temp
                     st.info(f"📊 기준일: {check_date[:4]}-{check_date[4:6]}-{check_date[6:]} 시가총액 데이터 사용")
                     break
             except Exception as e:
-                st.write(f"❌ {check_date} 조회 실패: {str(e)}")
                 continue
         
         if market_cap_df is None or market_cap_df.empty:
@@ -997,6 +994,10 @@ elif view_mode == "🔍 상세 분석":
     # 데이터 로드
     with st.spinner(f'{selected_asset} 데이터 로딩 중...'):
         data = load_data(ticker, period=period_options[selected_period])
+
+    # 디버깅: 선택된 자산 확인
+    st.write(f"DEBUG: selected_asset = '{selected_asset}'")
+    st.write(f"DEBUG: 조건 체크 = {selected_asset in ['🇰🇷 KOSPI', '🇰🇷 KOSDAQ']}")
 
     # KOSPI 또는 KOSDAQ 선택 시 종목 스크리닝 먼저 실행 (지수 데이터와 무관)
     if selected_asset in ["🇰🇷 KOSPI", "🇰🇷 KOSDAQ"]:
