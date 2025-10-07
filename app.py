@@ -726,7 +726,13 @@ def display_metrics(data, name):
     price_change = current_price - previous['Close']
     price_change_pct = (price_change / previous['Close']) * 100
     
-    col1, col2 = st.columns(2)
+    # ADR (Average Daily Range) 계산 - 최근 20일 평균
+    # ADR = 평균 (고가 - 저가) / 저가 * 100
+    recent_data = data.tail(20)
+    daily_ranges = ((recent_data['High'] - recent_data['Low']) / recent_data['Low']) * 100
+    adr = daily_ranges.mean()
+    
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         st.metric(
@@ -741,6 +747,13 @@ def display_metrics(data, name):
         st.metric(
             label=f"RSI ({rsi_status})",
             value=f"{rsi_value:.2f}"
+        )
+    
+    with col3:
+        st.metric(
+            label="ADR (20일)",
+            value=f"{adr:.2f}%",
+            help="평균 일간 변동폭 = 평균(고가-저가)/저가 * 100"
         )
 
 # ==================== 메인 앱 ====================
@@ -1004,12 +1017,17 @@ elif view_mode == "🔍 상세 분석":
             
             st.markdown("---")
             st.subheader(f"🔍 {market_display} 우량기업 스크리닝")
+            st.info(f"🔄 {market_display} 시가총액 상위 400개 종목 분석을 시작합니다...")
             
             with st.spinner(f"시가총액 상위 400개 종목에서 20일 신고가 종목 검색 중... (약 1-2분 소요)"):
-                if market_type == "KOSPI":
-                    new_high_stocks = screen_kospi_stocks()
-                else:
-                    new_high_stocks = screen_kosdaq_stocks()
+                try:
+                    if market_type == "KOSPI":
+                        new_high_stocks = screen_kospi_stocks()
+                    else:
+                        new_high_stocks = screen_kosdaq_stocks()
+                except Exception as e:
+                    st.error(f"❌ 스크리닝 중 오류 발생: {str(e)}")
+                    new_high_stocks = []
             
             # 20일 신고가 종목 표시
             st.info(f"📊 대상: {market_display} 시가총액 상위 400개 | 조건: ① 신고가 98%↑ + ② 거래량 20%↑ + ③ 60일선↑")
