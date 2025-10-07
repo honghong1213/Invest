@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import ta
 import ssl
 import certifi
+from pykrx import stock
 
 # SSL 인증서 문제 해결
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -484,127 +485,47 @@ def create_mini_chart(data, title):
 
 def screen_kospi_stocks():
     """
-    KOSPI 100개 종목 스크리닝
+    KOSPI 전체 상장사 스크리닝 (약 960개)
     조건: 20일 신고가 AND 후행스팬이 볼린저밴드 상단을 돌파한 종목
     """
-    # KOSPI 주요 종목 리스트 (100개)
-    kospi_symbols = {
-        # IT/반도체 (22개)
-        "삼성전자": "005930.KS",
-        "SK하이닉스": "000660.KS",
-        "LG에너지솔루션": "373220.KS",
-        "삼성SDI": "006400.KS",
-        "LG전자": "066570.KS",
-        "삼성전기": "009150.KS",
-        "SK스퀘어": "402340.KS",
-        "HD현대일렉트릭": "267260.KS",
-        "LG디스플레이": "034220.KS",
-        "SK하이닉스우": "000665.KS",
-        "삼성전자우": "005935.KS",
-        "파트론": "091700.KS",
-        "엘에스일렉트릭": "010120.KS",
-        "아모텍": "052710.KS",
-        "덴티움": "145720.KS",
-        "피에스케이": "319660.KS",
-        "피에스케이홀딩스": "031980.KS",
-        "에스에프에이": "056190.KS",
-        "원익IPS": "240810.KS",
-        "리노공업": "058470.KS",
-        "테스": "095610.KS",
-        "디바이스이엔지": "187870.KS",
+    
+    try:
+        # KOSPI 전체 종목 리스트 가져오기
+        today = datetime.now().strftime("%Y%m%d")
+        kospi_tickers = stock.get_market_ticker_list(today, market="KOSPI")
         
-        # 바이오/제약 (8개)
-        "삼성바이오로직스": "207940.KS",
-        "셀트리온": "068270.KS",
-        "셀트리온헬스케어": "091990.KS",
-        "한미약품": "128940.KS",
-        "유한양행": "000100.KS",
-        "신라젠": "215600.KS",
-        "메디톡스": "086900.KS",
-        "녹십자": "006280.KS",
+        # 종목명 가져오기
+        kospi_symbols = {}
+        for ticker in kospi_tickers:
+            try:
+                name = stock.get_market_ticker_name(ticker)
+                # yfinance 형식으로 변환 (6자리 코드.KS)
+                kospi_symbols[name] = f"{ticker}.KS"
+            except:
+                continue
         
-        # 자동차/부품 (7개)
-        "현대차": "005380.KS",
-        "기아": "000270.KS",
-        "현대모비스": "012330.KS",
-        "현대위아": "011210.KS",
-        "만도": "204320.KS",
-        "현대글로비스": "086280.KS",
-        "현대차우": "005385.KS",
+        st.info(f"📊 KOSPI 전체 {len(kospi_symbols)}개 종목 분석 시작...")
         
-        # 화학/소재 (13개)
-        "LG화학": "051910.KS",
-        "포스코홀딩스": "005490.KS",
-        "SK이노베이션": "096770.KS",
-        "POSCO DX": "022100.KS",
-        "롯데케미칼": "011170.KS",
-        "한화솔루션": "009830.KS",
-        "코오롱인더": "120110.KS",
-        "효성티앤씨": "298020.KS",
-        "효성첨단소재": "298050.KS",
-        "SKC": "011790.KS",
-        "SKC우": "011795.KS",
-        "OCI": "010060.KS",
-        "후성": "093370.KS",
+    except Exception as e:
+        st.warning(f"⚠️ pykrx로 종목 리스트를 가져오는 데 실패했습니다: {str(e)}")
+        st.info("💡 주요 종목만으로 분석을 진행합니다...")
         
-        # 건설/중공업 (10개)
-        "삼성물산": "028260.KS",
-        "현대건설": "000720.KS",
-        "GS건설": "006360.KS",
-        "대림산업": "000210.KS",
-        "대우건설": "047040.KS",
-        "현대중공업지주": "267250.KS",
-        "삼성중공업": "010140.KS",
-        "대한조선": "042660.KS",
-        "두산밥캣": "241560.KS",
-        "두산에너빌리티": "034020.KS",
-        
-        # 금융 (10개)
-        "KB금융": "105560.KS",
-        "신한지주": "055550.KS",
-        "하나금융지주": "086790.KS",
-        "우리금융지주": "316140.KS",
-        "삼성생명": "032830.KS",
-        "한화생명": "088350.KS",
-        "삼성화재": "000810.KS",
-        "메리츠금융지주": "138040.KS",
-        "DB손해보험": "005830.KS",
-        "삼성증권": "016360.KS",
-        
-        # 에너지/유틸리티 (6개)
-        "한국전력": "015760.KS",
-        "한국가스공사": "036460.KS",
-        "SK": "034730.KS",
-        "GS": "078930.KS",
-        "S-Oil": "010950.KS",
-        "에쓰오일": "010950.KS",
-        
-        # 기타 (24개)
-        "NAVER": "035420.KS",
-        "카카오": "035720.KS",
-        "HMM": "011200.KS",
-        "LG": "003550.KS",
-        "SK텔레콤": "017670.KS",
-        "KT": "030200.KS",
-        "LG유플러스": "032640.KS",
-        "롯데쇼핑": "023530.KS",
-        "신세계": "004170.KS",
-        "이마트": "139480.KS",
-        "CJ제일제당": "097950.KS",
-        "CJ": "001040.KS",
-        "대한항공": "003490.KS",
-        "아시아나항공": "020560.KS",
-        "호텔신라": "008770.KS",
-        "넷마블": "251270.KS",
-        "엔씨소프트": "036570.KS",
-        "펄어비스": "263750.KS",
-        "크래프톤": "259960.KS",
-        "카카오게임즈": "293490.KS",
-        "카카오뱅크": "323410.KS",
-        "카카오페이": "377300.KS",
-        "쿠팡": "CPNG",
-        "크래프톤우": "259965.KS",
-    }
+        # 실패 시 주요 종목만 사용
+        kospi_symbols = {
+            # IT/반도체
+            "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "LG에너지솔루션": "373220.KS",
+            "삼성SDI": "006400.KS", "LG전자": "066570.KS", "삼성전기": "009150.KS",
+            # 바이오/제약
+            "삼성바이오로직스": "207940.KS", "셀트리온": "068270.KS", "셀트리온헬스케어": "091990.KS",
+            # 자동차
+            "현대차": "005380.KS", "기아": "000270.KS", "현대모비스": "012330.KS",
+            # 화학/소재
+            "LG화학": "051910.KS", "포스코홀딩스": "005490.KS", "SK이노베이션": "096770.KS",
+            # 금융
+            "KB금융": "105560.KS", "신한지주": "055550.KS", "하나금융지주": "086790.KS",
+            # 기타
+            "NAVER": "035420.KS", "카카오": "035720.KS", "삼성물산": "028260.KS",
+        }
     
     qualified_stocks = []
     
@@ -612,33 +533,44 @@ def screen_kospi_stocks():
     status_text = st.empty()
     
     total = len(kospi_symbols)
+    processed = 0
+    errors = 0
     
     for idx, (name, symbol) in enumerate(kospi_symbols.items()):
         try:
-            status_text.text(f"분석 중: {name} ({idx+1}/{total})")
+            status_text.text(f"분석 중: {name} ({idx+1}/{total}) | 조건 충족: {len(qualified_stocks)}개 | 오류: {errors}개")
             progress_bar.progress((idx + 1) / total)
             
+            # 데이터 로드 (3개월)
             data = load_data(symbol, period="3mo")
-            if data is None or data.empty:
+            if data is None or data.empty or len(data) < 30:
+                errors += 1
                 continue
             
+            # 지표 계산
             data = calculate_indicators(data)
             latest = data.iloc[-1]
+            
+            # 필수 지표가 없으면 스킵
+            if pd.isna(latest['RSI']) or pd.isna(latest['Ichimoku_Lagging']) or pd.isna(latest['BB_Upper']):
+                errors += 1
+                continue
             
             # 1. 20일 신고가 체크
             high_20d = data['High'][-20:].max()
             is_new_high = latest['Close'] >= high_20d * 0.99  # 99% 이상이면 신고가 근처
             
             # 2. 후행스팬이 볼린저밴드 상단 돌파 체크
-            is_lagging_above_bb = False
-            if pd.notna(latest['Ichimoku_Lagging']) and pd.notna(latest['BB_Upper']):
-                is_lagging_above_bb = latest['Ichimoku_Lagging'] > latest['BB_Upper']
+            is_lagging_above_bb = latest['Ichimoku_Lagging'] > latest['BB_Upper']
             
             # 두 조건을 모두 만족하는 종목만 추가
             if is_new_high and is_lagging_above_bb:
                 qualified_stocks.append((name, symbol, data, latest))
+            
+            processed += 1
         
         except Exception as e:
+            errors += 1
             continue
     
     progress_bar.empty()
@@ -646,6 +578,8 @@ def screen_kospi_stocks():
     
     # RSI 높은 순으로 정렬
     qualified_stocks.sort(key=lambda x: x[3]['RSI'] if pd.notna(x[3]['RSI']) else 0, reverse=True)
+    
+    st.success(f"✅ 분석 완료: 총 {processed}개 종목 처리, {len(qualified_stocks)}개 종목 조건 충족")
     
     return qualified_stocks
 
@@ -936,7 +870,7 @@ elif view_mode == "🔍 상세 분석":
             st.markdown("---")
             st.subheader("🔍 KOSPI 종목 스크리닝")
             
-            with st.spinner("KOSPI 100개 종목 분석 중... (약 1-2분 소요)"):
+            with st.spinner("KOSPI 전체 상장사 분석 중... (약 5-10분 소요, 960개 종목)"):
                 qualified_stocks = screen_kospi_stocks()
             
             # 조건을 만족하는 종목 표시
