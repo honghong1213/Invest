@@ -703,16 +703,19 @@ def screen_stocks_by_market(market_type="KOSPI"):
             # yfinance로 데이터 로드 (재시도 로직 포함)
             data = load_korean_stock_data(symbol, period="1mo")
             
-            if data is None or data.empty or len(data) < 20:
+            # 최근 30일은 주말/공휴일 제외하면 15~18일 정도
+            if data is None or data.empty or len(data) < 15:
                 errors += 1
                 if idx < 5:  # 처음 5개 종목의 오류만 표시
-                    st.warning(f"⚠️ {name} ({symbol}): 데이터 로드 실패 또는 데이터 부족")
+                    st.warning(f"⚠️ {name} ({symbol}): 데이터 로드 실패 또는 데이터 부족 (현재: {len(data) if data is not None else 0}개)")
                 continue
             
             latest = data.iloc[-1]
             
             # 1차 필터: 20일 신고가 체크 (98% 이상)
-            high_20d = data['High'][-20:].max()
+            # 데이터가 20개 미만이면 전체 기간의 최고가 사용
+            lookback_days = min(20, len(data))
+            high_20d = data['High'][-lookback_days:].max()
             is_new_high = latest['Close'] >= high_20d * 0.98  # 98% 이상 (신고가 근처)
             
             if not is_new_high:
@@ -733,7 +736,8 @@ def screen_stocks_by_market(market_type="KOSPI"):
             # 3차 필터: 60일선 체크
             # 신고가 + 거래량 증가 종목 발견 시 3개월 데이터로 지표 계산
             data_3m = load_korean_stock_data(symbol, period="3mo")
-            if data_3m is not None and not data_3m.empty and len(data_3m) >= 60:
+            # 3개월은 주말/공휴일 제외하면 약 60일 정도
+            if data_3m is not None and not data_3m.empty and len(data_3m) >= 50:
                 # 60일 이동평균선 계산
                 ma_60 = data_3m['Close'].rolling(window=60).mean()
                 data_3m['MA60'] = ma_60
