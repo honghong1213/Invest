@@ -76,60 +76,37 @@ def load_data(ticker, period="1y"):
 
 
 @st.cache_data(ttl=300)  # 5분 캐시
-def load_korean_stock_data(ticker_code, period="1y"):
+def load_korean_stock_data(symbol, period="1y"):
     """
-    pykrx를 사용하여 한국 주식 데이터 로드
-    ticker_code: "005930" 형식 (6자리)
+    yfinance를 사용하여 한국 주식 데이터 로드 (재시도 로직 포함)
+    symbol: "005930.KS" 또는 "196170.KQ" 형식
     period: "1mo", "3mo", "6mo", "1y" 등
     """
-    try:
-        from datetime import datetime, timedelta
-        
-        # period를 일수로 변환
-        period_days = {
-            "1mo": 30,
-            "3mo": 90,
-            "6mo": 180,
-            "1y": 365,
-            "2y": 730,
-            "5y": 1825
-        }
-        
-        days = period_days.get(period, 365)
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=days)
-        
-        # pykrx로 데이터 조회
-        df = pykrx_stock.get_market_ohlcv_by_date(
-            start_date.strftime("%Y%m%d"),
-            end_date.strftime("%Y%m%d"),
-            ticker_code
-        )
-        
-        if df is None or df.empty:
-            return None
-        
-        # yfinance 형식으로 컬럼명 변경
-        # pykrx 컬럼: 시가, 고가, 저가, 종가, 거래량, 등락률
-        df = df.rename(columns={
-            '시가': 'Open',
-            '고가': 'High',
-            '저가': 'Low',
-            '종가': 'Close',
-            '거래량': 'Volume'
-        })
-        
-        # 필요한 컬럼만 선택
-        df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
-        
-        return df
-        
-    except Exception as e:
-        # 디버깅을 위해 에러 출력
-        import traceback
-        st.error(f"pykrx 에러 ({ticker_code}): {str(e)}")
-        st.error(f"상세: {traceback.format_exc()}")
-        return None
+    import time
+    
+    # 최대 3번 재시도
+    for attempt in range(3):
+        try:
+            ticker = yf.Ticker(symbol)
+            data = ticker.history(period=period, timeout=30)  # 타임아웃 30초
+            
+            if data is not None and len(data) > 0:
+                # 필요한 컬럼만 선택
+                data = data[['Open', 'High', 'Low', 'Close', 'Volume']]
+                return data
+            
+            # 데이터가 비어있으면 재시도
+            if attempt < 2:
+                time.sleep(1)  # 1초 대기 후 재시도
+                
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(1)  # 에러 발생 시 1초 대기 후 재시도
+            else:
+                # 마지막 시도에서도 실패하면 None 반환
+                return None
+    
+    return None
 
 def calculate_indicators(data):
     """
@@ -693,14 +670,13 @@ def screen_stocks_by_market(market_type="KOSPI"):
             status_text.text(f"검색 중: {name} ({idx+1}/{total}) | 조건 충족: {len(new_high_stocks)}개 | 오류: {errors}개")
             progress_bar.progress((idx + 1) / total)
             
-            # 한국 주식은 pykrx 사용, 그 외는 yfinance 사용
-            ticker_code = symbol.replace(".KS", "").replace(".KQ", "")
-            data = load_korean_stock_data(ticker_code, period="1mo")
+            # yfinance로 데이터 로드 (재시도 로직 포함)
+            data = load_korean_stock_data(symbol, period="1mo")
             
             if data is None or data.empty or len(data) < 20:
                 errors += 1
                 if idx < 5:  # 처음 5개 종목의 오류만 표시
-                    st.warning(f"⚠️ {name} ({symbol}): 데이터 로드 실패 또는 데이터 부족 (pykrx)")
+                    st.warning(f"⚠️ {name} ({symbol}): 데이터 로드 실패 또는 데이터 부족")
                 continue
             
             latest = data.iloc[-1]
@@ -726,7 +702,7 @@ def screen_stocks_by_market(market_type="KOSPI"):
             
             # 3차 필터: 60일선 체크
             # 신고가 + 거래량 증가 종목 발견 시 3개월 데이터로 지표 계산
-            data_3m = load_korean_stock_data(ticker_code, period="3mo")
+            data_3m = load_korean_stock_data(symbol, period="3mo")
             if data_3m is not None and not data_3m.empty and len(data_3m) >= 60:
                 # 60일 이동평균선 계산
                 ma_60 = data_3m['Close'].rolling(window=60).mean()
@@ -744,7 +720,8 @@ def screen_stocks_by_market(market_type="KOSPI"):
                     # 거래량 증가율 저장
                     volume_increase_pct = ((recent_volume_avg - prev_volume_avg) / prev_volume_avg) * 100
                     
-                    # 영업이익(EPS) 변동률 조회 (ticker_code는 이미 위에서 추출됨)
+                    # 영업이익(EPS) 변동률 조회 (6자리 티커 코드 필요)
+                    ticker_code = symbol.replace(".KS", "").replace(".KQ", "")
                     eps_change = get_operating_income_change(ticker_code)
                     
                     new_high_stocks.append((name, symbol, data_with_indicators, latest_with_indicators, volume_increase_pct, eps_change))
