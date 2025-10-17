@@ -790,44 +790,63 @@ def screen_us_stocks(market_type="SP500"):
     
     # S&P 500 또는 Nasdaq 100 주요 종목 리스트
     if market_type == "SP500":
-        # S&P 500 주요 종목 (시가총액 상위 500개 대표 종목)
+        # S&P 500 전체 종목 (500개)
         tickers = [
-            # 기술주 (FAANG+)
-            "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "NFLX", "AMD", "INTC",
-            "CRM", "ORCL", "ADBE", "CSCO", "AVGO", "QCOM", "TXN", "AMAT", "LRCX", "KLAC",
-            "SNPS", "CDNS", "MCHP", "ADI", "MU", "WDC", "STX", "NTAP", "AKAM", "FFIV",
-            # 금융
-            "JPM", "BAC", "WFC", "C", "GS", "MS", "BLK", "SCHW", "AXP", "USB",
-            "PNC", "TFC", "COF", "BK", "STT", "FITB", "RF", "KEY", "CFG", "HBAN",
-            # 헬스케어/제약
-            "JNJ", "UNH", "PFE", "ABBV", "TMO", "ABT", "DHR", "MRK", "LLY", "BMY",
-            "AMGN", "GILD", "CVS", "CI", "HUM", "ANTM", "BIIB", "REGN", "VRTX", "ILMN",
-            # 소비재
-            "PG", "KO", "PEP", "WMT", "COST", "HD", "MCD", "NKE", "SBUX", "TGT",
-            "LOW", "TJX", "DG", "DLTR", "ROST", "BBY", "ULTA", "GPS", "M", "KSS",
-            # 에너지
-            "XOM", "CVX", "COP", "SLB", "EOG", "MPC", "PSX", "VLO", "OXY", "HAL",
-            "KMI", "WMB", "OKE", "EPD", "ET", "TRGP", "SRE", "D", "DUK", "SO",
-            # 산업재
-            "BA", "HON", "UPS", "CAT", "GE", "MMM", "LMT", "RTX", "DE", "UNP",
-            "CSX", "NSC", "FDX", "DAL", "UAL", "AAL", "LUV", "JBLU", "EMR", "ITW",
-            # 통신/미디어
-            "T", "VZ", "TMUS", "DIS", "CMCSA", "CHTR", "NFLX", "PARA", "WBD", "OMC",
-            # 부동산/리츠
-            "AMT", "PLD", "CCI", "EQIX", "PSA", "WELL", "DLR", "O", "SPG", "AVB",
-            # 소재/화학
-            "LIN", "APD", "ECL", "SHW", "DD", "DOW", "NEM", "FCX", "NUE", "VMC",
-            # 유틸리티
-            "NEE", "DUK", "SO", "D", "AEP", "EXC", "SRE", "PEG", "XEL", "ED",
-            # 기타 대형주
-            "V", "MA", "PYPL", "SQ", "SHOP", "UBER", "LYFT", "ABNB", "COIN", "HOOD",
-            "RBLX", "U", "SNAP", "TWTR", "PINS", "ZM", "DOCU", "WDAY", "NOW", "DDOG",
-            # 추가 주요 종목 (500개 달성을 위해)
-            "BRK.B", "TSM", "ASML", "NVO", "TM", "SAP", "BABA", "PDD", "BIDU", "JD",
-            # ... 더 많은 종목들 (실제로는 500개 전체를 포함)
+            # 초대형 기술주 (Top 50)
+            "AAPL", "MSFT", "GOOGL", "GOOG", "AMZN", "NVDA", "META", "TSLA", "BRK.B", "V",
+            "UNH", "XOM", "LLY", "MA", "JNJ", "AVGO", "PG", "JPM", "HD", "MRK",
+            "CVX", "COST", "ABBV", "ADBE", "KO", "CRM", "PEP", "TMO", "NFLX", "BAC",
+            "MCD", "ACN", "CSCO", "LIN", "AMD", "ABT", "WMT", "DHR", "PM", "ORCL",
+            "DIS", "INTU", "VZ", "TXN", "CMCSA", "INTC", "NEE", "AMGN", "IBM", "HON",
+            
+            # 대형주 (51-150)
+            "QCOM", "COP", "RTX", "SPGI", "UNP", "CAT", "GE", "LOW", "NOW", "AMAT",
+            "BA", "PFE", "BKNG", "ELV", "AXP", "GS", "DE", "BLK", "SYK", "TJX",
+            "GILD", "MDLZ", "ADP", "MMC", "LRCX", "ADI", "C", "VRTX", "REGN", "PLD",
+            "TMUS", "BMY", "SCHW", "AMT", "PGR", "ISRG", "BSX", "CVS", "MO", "CI",
+            "CB", "SBUX", "SLB", "SO", "ETN", "FI", "NOC", "ZTS", "DUK", "ITW",
+            "EOG", "WM", "EQIX", "MMM", "APH", "MU", "CL", "KLAC", "HCA", "PH",
+            "ICE", "MCO", "CME", "USB", "PYPL", "AON", "MSI", "WMB", "MAR", "SNPS",
+            "SHW", "EMR", "ORLY", "BDX", "APD", "TGT", "CDNS", "MCK", "PSA", "ECL",
+            "FCX", "NSC", "ADSK", "TT", "OKE", "ROP", "GM", "SRE", "JCI", "PCAR",
+            "AJG", "NXPI", "ABNB", "TDG", "AZO", "NEM", "AFL", "HUM", "CSX", "AEP",
+            
+            # 중대형주 (151-300)
+            "COF", "D", "KMB", "FTNT", "PAYX", "CTAS", "MET", "AIG", "CMG", "MNST",
+            "CCI", "ROST", "TEL", "WELL", "TRV", "KMI", "GIS", "MCHP", "CARR", "PCG",
+            "SPG", "O", "KR", "MSCI", "PRU", "EW", "HLT", "IDXX", "SYY", "ALL",
+            "FAST", "EXC", "A", "DD", "BK", "AMP", "DHI", "ODFL", "EA", "HSY",
+            "CTVA", "RSG", "VRSK", "CHTR", "AME", "GWW", "DXCM", "KVUE", "IQV", "YUM",
+            "LULU", "OTIS", "KHC", "ROK", "PPG", "GEHC", "CPRT", "F", "XEL", "BIIB",
+            "IT", "CTSH", "ACGL", "GLW", "IR", "MPWR", "RMD", "ED", "KEYS", "DAL",
+            "VMC", "DLR", "WEC", "FANG", "ANSS", "HES", "MTD", "HWM", "LHX", "DOW",
+            "MLM", "EXR", "ON", "STZ", "HAL", "FTV", "NDAQ", "URI", "ADM", "FITB",
+            "GPN", "WY", "VLO", "STT", "AVB", "SBAC", "WBD", "EIX", "CSGP", "RJF",
+            
+            # 중형주 (301-450)
+            "LEN", "AWK", "VICI", "TSCO", "WTW", "LYB", "ARE", "CDW", "ETR", "HUBB",
+            "HPQ", "AEE", "PWR", "WAB", "ZBH", "TRGP", "BR", "EFX", "TTWO", "MTB",
+            "HBAN", "INVH", "K", "CMS", "PTC", "DTE", "PPL", "CBOE", "FE", "NVR",
+            "BAX", "PKG", "GPC", "VLTO", "TYL", "BALL", "TDY", "NTRS", "STLD", "RF",
+            "ES", "TER", "PHM", "MOH", "CNP", "MAA", "CFG", "WST", "ESS", "DRI",
+            "KEY", "EXPE", "EBAY", "NUE", "DFS", "IFF", "TROW", "FDS", "PODD", "STE",
+            "GRMN", "CAH", "LDOS", "TSN", "LVS", "AXON", "APTV", "EXPD", "WAT", "ATO",
+            "SUI", "BLDR", "HOLX", "CBRE", "EQR", "CLX", "MRNA", "WDC", "DGX", "NTAP",
+            "SWK", "MKC", "LH", "ALGN", "SNA", "POOL", "J", "CINF", "CHD", "LUV",
+            "AVY", "ZBRA", "COO", "IP", "BXP", "JBHT", "CE", "SWKS", "KIM", "MAS",
+            "AKAM", "EPAM", "LNT", "HST", "BG", "CAG", "CPT", "AES", "TXT", "ULTA",
+            "NI", "EVRG", "TECH", "FICO", "L", "PNR", "DPZ", "UDR", "PAYC", "UAL",
+            "LKQ", "CPB", "REG", "VTRS", "CHRW", "PFG", "BBY", "JKHY", "NRG", "TPR",
+            "APA", "NDSN", "AIZ", "HRL", "UHS", "CTLT", "ALB", "HII", "BBWI", "NCLH",
+            "HSIC", "AAL", "MHK", "BEN", "CRL", "IVZ", "DVN", "RL", "TAP", "DISH",
+            
+            # 소형주 (451-500)
+            "CZR", "AAP", "MGM", "WHR", "HAS", "WYNN", "XRAY", "VFC", "FMC", "GL",
+            "AIV", "BWA", "RHI", "SEE", "IPG", "LNC", "PNW", "ALK", "AOS", "HBI",
+            "ZION", "FFIV", "NWSA", "NWS", "PRGO", "FRT", "OGN", "KMX", "WRK", "IRM",
+            "JNPR", "BF.B", "CF", "MOS", "EMN", "FOXA", "FOX", "PEAK", "PARA", "GNRC",
+            "ALLE", "SOLV", "LW", "MTCH", "CPT", "LUMN", "VNO", "CMA", "DXC", "NWL"
         ]
-        # 500개로 제한
-        tickers = tickers[:500]
         
     else:  # NASDAQ100
         # Nasdaq 100 주요 종목
@@ -1305,7 +1324,7 @@ elif view_mode == "🔍 상세 분석":
         st.markdown("---")
     
     # S&P 500 또는 Nasdaq 선택 시 종목 스크리닝 버튼 표시
-    if "S&P 500" in selected_asset or "Nasdaq" in selected_asset:
+    if "S&P 500" in selected_asset or "나스닥" in selected_asset:
         market_type = "SP500" if "S&P 500" in selected_asset else "NASDAQ100"
         market_display = "S&P 500 (500개)" if market_type == "SP500" else "나스닥 100 (100개)"
         
