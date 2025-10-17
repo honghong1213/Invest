@@ -78,21 +78,51 @@ def load_data(ticker, period="1y"):
 @st.cache_data(ttl=300)  # 5분 캐시
 def load_korean_stock_data(symbol, period="1y"):
     """
-    yfinance를 사용하여 한국 주식 데이터 로드 (재시도 로직 포함)
+    yfinance를 사용하여 한국 주식 데이터 로드 (주말/공휴일 대응)
     symbol: "005930.KS" 또는 "196170.KQ" 형식
     period: "1mo", "3mo", "6mo", "1y" 등
     """
     import time
+    from datetime import datetime, timedelta
+    import pytz
     
     # 최대 3번 재시도
     for attempt in range(3):
         try:
             ticker = yf.Ticker(symbol)
-            data = ticker.history(period=period, timeout=30)  # 타임아웃 30초
+            
+            # 기간을 늘려서 충분한 데이터 확보 (주말/공휴일 대비)
+            extended_period = period
+            if period == "1mo":
+                extended_period = "2mo"  # 1개월 요청 시 2개월로 확장
+            elif period == "3mo":
+                extended_period = "6mo"  # 3개월 요청 시 6개월로 확장
+            
+            data = ticker.history(period=extended_period, timeout=30)
             
             if data is not None and len(data) > 0:
                 # 필요한 컬럼만 선택
                 data = data[['Open', 'High', 'Low', 'Close', 'Volume']]
+                
+                # 원래 요청한 기간만큼만 자르기 (timezone 고려)
+                period_days = {
+                    "1mo": 30,
+                    "3mo": 90,
+                    "6mo": 180,
+                    "1y": 365,
+                    "2y": 730,
+                    "5y": 1825
+                }
+                days = period_days.get(period, 365)
+                
+                # data.index의 timezone에 맞춰서 cutoff_date 생성
+                if data.index.tz is not None:
+                    cutoff_date = datetime.now(data.index.tz) - timedelta(days=days)
+                else:
+                    cutoff_date = datetime.now() - timedelta(days=days)
+                
+                data = data[data.index >= cutoff_date]
+                
                 return data
             
             # 데이터가 비어있으면 재시도
