@@ -71,7 +71,7 @@ def load_data(ticker, period="1y"):
         
         return data
     except Exception as e:
-        st.error(f"데이터 로드 실패: {ticker} - {str(e)}")
+        # 에러를 표시하지 않고 None 반환 (스크리닝 시 너무 많은 메시지 방지)
         return None
 
 def calculate_indicators(data):
@@ -640,6 +640,8 @@ def screen_stocks_by_market(market_type="KOSPI"):
             data = load_data(symbol, period="1mo")
             if data is None or data.empty or len(data) < 20:
                 errors += 1
+                if idx < 5:  # 처음 5개 종목의 오류만 표시
+                    st.warning(f"⚠️ {name} ({symbol}): 데이터 로드 실패 또는 데이터 부족")
                 continue
             
             latest = data.iloc[-1]
