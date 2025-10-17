@@ -110,12 +110,25 @@ def load_korean_stock_data(ticker_code, period="1y"):
             return None
         
         # yfinance 형식으로 컬럼명 변경
-        df.columns = ['Open', 'High', 'Low', 'Close', 'Volume', '등락률']
-        df = df[['Open', 'High', 'Low', 'Close', 'Volume']]  # 등락률 제거
+        # pykrx 컬럼: 시가, 고가, 저가, 종가, 거래량, 등락률
+        df = df.rename(columns={
+            '시가': 'Open',
+            '고가': 'High',
+            '저가': 'Low',
+            '종가': 'Close',
+            '거래량': 'Volume'
+        })
+        
+        # 필요한 컬럼만 선택
+        df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
         
         return df
         
     except Exception as e:
+        # 디버깅을 위해 에러 출력
+        import traceback
+        st.error(f"pykrx 에러 ({ticker_code}): {str(e)}")
+        st.error(f"상세: {traceback.format_exc()}")
         return None
 
 def calculate_indicators(data):
